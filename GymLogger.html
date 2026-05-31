@@ -392,25 +392,48 @@ function updateGcalUI(){
   }
   updateGcalDeleteBtn();
 }
+/* gcalStore: { 'weekKey': ['eventId', ...], ... } — per week bijhouden */
+var gcalStore=JSON.parse(localStorage.getItem('gymtracker_gcal_store')||'{}');
+function saveGcalStore(){localStorage.setItem('gymtracker_gcal_store',JSON.stringify(gcalStore));}
+function gcalAllIds(){var all=[];Object.values(gcalStore).forEach(function(ids){all=all.concat(ids);});return all;}
+
+async function deleteEventIds(ids){
+  var deleted=0,failed=0;
+  for(var i=0;i<ids.length;i++){
+    try{
+      var res=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+ids[i],{method:'DELETE',headers:{'Authorization':'Bearer '+gcalToken}});
+      if(res.ok||res.status===410){deleted++;}
+      else if(res.status===401){gcalToken='';localStorage.removeItem('gymtracker_gcal_token');updateGcalUI();connectGoogle();return -1;}
+      else{failed++;}
+    }catch(err){failed++;}
+  }
+  return{deleted:deleted,failed:failed};
+}
+
 async function syncGoogleCalendar(){
   if(!gcalToken){connectGoogle();return;}
   ensureNewFields();
   var actNames={gym:'🏋️ Gym',hardlopen:'🏃 Hardlopen',zwemmen:'🏊 Zwemmen'};
   var colorIds={gym:'2',hardlopen:'6',zwemmen:'7'};
-  // Geselecteerde week (via planner week-navigator)
   var mon=getWeekMon(plannerWeekOffset);
+  var weekKey=mon.toISOString().slice(0,10);
   var weekDates=getWeekDates(mon);
   var events=[];
   weekDates.forEach(function(ds,di){
     ['gym','hardlopen','zwemmen'].forEach(function(act){
-      if((S.activitySchedule[act]||[]).includes(di)){
-        events.push({act:act,date:ds});
-      }
+      if((S.activitySchedule[act]||[]).includes(di))events.push({act:act,date:ds});
     });
   });
   if(!events.length){showToast('Geen activiteiten ingepland');return;}
   var btn=document.getElementById('gcal-sync-btn');
   if(btn){btn.disabled=true;btn.textContent='Bezig...';}
+  // Verwijder eventueel al bestaande events voor deze week eerst
+  if(gcalStore[weekKey]&&gcalStore[weekKey].length){
+    var r=await deleteEventIds(gcalStore[weekKey]);
+    if(r===-1){if(btn){btn.disabled=false;btn.textContent='Sync naar agenda';}return;}
+    delete gcalStore[weekKey];saveGcalStore();
+  }
+  // Maak nieuwe events aan
   var createdIds=[];var failed=0;
   for(var i=0;i<events.length;i++){
     var e=events[i];
@@ -425,23 +448,22 @@ async function syncGoogleCalendar(){
       else{failed++;}
     }catch(err){failed++;}
   }
-  // Sla event IDs op zodat we ze later kunnen verwijderen
-  localStorage.setItem('gymtracker_gcal_ids',JSON.stringify(createdIds));
+  gcalStore[weekKey]=createdIds;saveGcalStore();
   if(btn){btn.disabled=false;btn.textContent='Sync naar agenda';}
   updateGcalDeleteBtn();
   showToast(createdIds.length+' events aangemaakt'+(failed?', '+failed+' mislukt':'')+'!');
 }
 async function deleteGoogleCalendarEvents(){
   if(!gcalToken){connectGoogle();return;}
-  var ids=JSON.parse(localStorage.getItem('gymtracker_gcal_ids')||'[]');
-  if(!ids.length){showToast('Geen events om te verwijderen');return;}
-  if(!confirm('Verwijder '+ids.length+' events uit je Google Agenda?'))return;
+  var allIds=gcalAllIds();
+  if(!allIds.length){showToast('Geen events om te verwijderen');return;}
+  if(!confirm('Verwijder alle '+allIds.length+' events uit je Google Agenda?'))return;
   var btn=document.getElementById('gcal-delete-btn');
   if(btn){btn.disabled=true;btn.textContent='Bezig...';}
   var deleted=0,failed=0;
-  for(var i=0;i<ids.length;i++){
+  for(var i=0;i<allIds.length;i++){
     try{
-      var res=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+ids[i],{
+      var res=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+allIds[i],{
         method:'DELETE',
         headers:{'Authorization':'Bearer '+gcalToken}
       });
@@ -450,15 +472,16 @@ async function deleteGoogleCalendarEvents(){
       else{failed++;}
     }catch(err){failed++;}
   }
-  localStorage.removeItem('gymtracker_gcal_ids');
+  gcalStore={};saveGcalStore();
   if(btn){btn.disabled=false;btn.textContent='Verwijder uit agenda';}
   updateGcalDeleteBtn();
   showToast(deleted+' events verwijderd'+(failed?', '+failed+' mislukt':'')+'!');
 }
 function updateGcalDeleteBtn(){
   var btn=document.getElementById('gcal-delete-btn');if(!btn)return;
-  var ids=JSON.parse(localStorage.getItem('gymtracker_gcal_ids')||'[]');
-  btn.style.display=ids.length?'':'none';
+  var total=gcalAllIds().length;
+  btn.style.display=total?'':'none';
+  if(total)btn.textContent='Verwijder alle events ('+total+')';
 }
 
 /* ─── HELPERS ─── */
