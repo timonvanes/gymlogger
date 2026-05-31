@@ -220,7 +220,14 @@ label{display:block;font-size:11px;font-weight:600;color:var(--muted);letter-spa
     <div class="day-grid" id="swim-day-grid"></div>
   </div>
 
-  <div style="font-weight:700;font-size:14px;margin-bottom:10px">Deze week</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div style="font-weight:700;font-size:14px" id="week-label">Deze week</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="btn-icon" onclick="changeWeek(-1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px" onclick="changeWeek(0)">Nu</button>
+      <button class="btn-icon" onclick="changeWeek(1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+    </div>
+  </div>
   <div class="week-progress" id="week-summary"></div>
   <div class="card" id="week-checklist"><p style="font-size:13px;color:var(--muted)">Nog geen dagen ingepland.</p></div>
 </div>
@@ -248,7 +255,8 @@ label{display:block;font-size:11px;font-weight:600;color:var(--muted);letter-spa
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       <button class="btn btn-primary btn-sm" id="gcal-connect-btn" onclick="connectGoogle()">Verbinden met Google</button>
       <button class="btn btn-ghost btn-sm" id="gcal-sync-btn" style="display:none" onclick="syncGoogleCalendar()">Sync naar agenda</button>
-      <button class="btn btn-danger btn-sm" id="gcal-disconnect-btn" style="display:none" onclick="disconnectGoogle()">Loskoppelen</button>
+      <button class="btn btn-danger btn-sm" id="gcal-delete-btn" style="display:none" onclick="deleteGoogleCalendarEvents()">Verwijder uit agenda</button>
+      <button class="btn btn-ghost btn-sm" id="gcal-disconnect-btn" style="display:none" onclick="disconnectGoogle()">Loskoppelen</button>
     </div>
     <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.6">Synchroniseert je geplande gym-, hardloop- en zwemdagen naar je Google Agenda voor de komende 4 weken.</div>
   </div>
@@ -382,31 +390,28 @@ function updateGcalUI(){
     st.innerHTML='<span style="color:var(--muted)">Niet verbonden</span>';
     if(cb)cb.style.display='';if(sb)sb.style.display='none';if(db)db.style.display='none';
   }
+  updateGcalDeleteBtn();
 }
 async function syncGoogleCalendar(){
   if(!gcalToken){connectGoogle();return;}
   ensureNewFields();
   var actNames={gym:'🏋️ Gym',hardlopen:'🏃 Hardlopen',zwemmen:'🏊 Zwemmen'};
   var colorIds={gym:'2',hardlopen:'6',zwemmen:'7'};
-  var today=new Date();today.setHours(0,0,0,0);
+  // Geselecteerde week (via planner week-navigator)
+  var mon=getWeekMon(plannerWeekOffset);
+  var weekDates=getWeekDates(mon);
   var events=[];
-  for(var week=0;week<4;week++){
+  weekDates.forEach(function(ds,di){
     ['gym','hardlopen','zwemmen'].forEach(function(act){
-      (S.activitySchedule[act]||[]).forEach(function(dayIdx){
-        var jsDow=indexToJsDay(dayIdx);
-        var todayDow=today.getDay();
-        var daysUntil=(jsDow-todayDow+7)%7;
-        if(daysUntil===0&&week===0){}
-        var d=new Date(today);
-        d.setDate(today.getDate()+daysUntil+week*7);
-        events.push({act:act,date:d.toISOString().slice(0,10)});
-      });
+      if((S.activitySchedule[act]||[]).includes(di)){
+        events.push({act:act,date:ds});
+      }
     });
-  }
+  });
   if(!events.length){showToast('Geen activiteiten ingepland');return;}
   var btn=document.getElementById('gcal-sync-btn');
   if(btn){btn.disabled=true;btn.textContent='Bezig...';}
-  var created=0,failed=0;
+  var createdIds=[];var failed=0;
   for(var i=0;i<events.length;i++){
     var e=events[i];
     try{
@@ -415,13 +420,45 @@ async function syncGoogleCalendar(){
         headers:{'Authorization':'Bearer '+gcalToken,'Content-Type':'application/json'},
         body:JSON.stringify({summary:actNames[e.act],start:{date:e.date},end:{date:e.date},colorId:colorIds[e.act]})
       });
-      if(res.ok){created++;}
+      if(res.ok){var d=await res.json();createdIds.push(d.id);}
       else if(res.status===401){gcalToken='';localStorage.removeItem('gymtracker_gcal_token');updateGcalUI();connectGoogle();if(btn){btn.disabled=false;btn.textContent='Sync naar agenda';}return;}
       else{failed++;}
     }catch(err){failed++;}
   }
+  // Sla event IDs op zodat we ze later kunnen verwijderen
+  localStorage.setItem('gymtracker_gcal_ids',JSON.stringify(createdIds));
   if(btn){btn.disabled=false;btn.textContent='Sync naar agenda';}
-  showToast(created+' events aangemaakt'+(failed?', '+failed+' mislukt':'')+'!');
+  updateGcalDeleteBtn();
+  showToast(createdIds.length+' events aangemaakt'+(failed?', '+failed+' mislukt':'')+'!');
+}
+async function deleteGoogleCalendarEvents(){
+  if(!gcalToken){connectGoogle();return;}
+  var ids=JSON.parse(localStorage.getItem('gymtracker_gcal_ids')||'[]');
+  if(!ids.length){showToast('Geen events om te verwijderen');return;}
+  if(!confirm('Verwijder '+ids.length+' events uit je Google Agenda?'))return;
+  var btn=document.getElementById('gcal-delete-btn');
+  if(btn){btn.disabled=true;btn.textContent='Bezig...';}
+  var deleted=0,failed=0;
+  for(var i=0;i<ids.length;i++){
+    try{
+      var res=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+ids[i],{
+        method:'DELETE',
+        headers:{'Authorization':'Bearer '+gcalToken}
+      });
+      if(res.ok||res.status===410){deleted++;}
+      else if(res.status===401){gcalToken='';localStorage.removeItem('gymtracker_gcal_token');updateGcalUI();connectGoogle();if(btn){btn.disabled=false;btn.textContent='Verwijder uit agenda';}return;}
+      else{failed++;}
+    }catch(err){failed++;}
+  }
+  localStorage.removeItem('gymtracker_gcal_ids');
+  if(btn){btn.disabled=false;btn.textContent='Verwijder uit agenda';}
+  updateGcalDeleteBtn();
+  showToast(deleted+' events verwijderd'+(failed?', '+failed+' mislukt':'')+'!');
+}
+function updateGcalDeleteBtn(){
+  var btn=document.getElementById('gcal-delete-btn');if(!btn)return;
+  var ids=JSON.parse(localStorage.getItem('gymtracker_gcal_ids')||'[]');
+  btn.style.display=ids.length?'':'none';
 }
 
 /* ─── HELPERS ─── */
@@ -556,6 +593,7 @@ function addExercise(){
   if(type==='superset'){var pn=document.getElementById('ex-pair-name').value.trim();if(!pn){showToast('Vul de tweede oefening in');return;}var ps=parseInt(document.getElementById('ex-pair-sets').value)||3;var pr2=parseInt(document.getElementById('ex-pair-reps').value)||10;S.today.exercises.push({type:'superset',exercises:[{name:name,sets:sets,reps:reps,type:'superset',setData:[],note:''},{name:pn,sets:ps,reps:pr2,type:'superset',setData:[],note:''}]});}
   else{S.today.exercises.push({type:'normal',exercises:[{name:name,sets:sets,reps:reps,type:type,setData:[],note:''}]});}
   saveS();closeModal('m-add-ex');renderWorkout();showToast('Toegevoegd');
+  if(!timerIv)startTimer();
 }
 function openExNote(bi,ei){curNoteTarget={bi:bi,ei:ei};var ex=S.today.exercises[bi].exercises[ei];document.getElementById('ex-note-title').textContent=ex.name+' notitie';document.getElementById('ex-note-text').value=ex.note||'';openModal('m-ex-note');}
 function saveExNote(){if(!curNoteTarget)return;S.today.exercises[curNoteTarget.bi].exercises[curNoteTarget.ei].note=document.getElementById('ex-note-text').value.trim();saveS();closeModal('m-ex-note');renderWorkout();}
@@ -722,6 +760,12 @@ function exportData(){var blob=new Blob([JSON.stringify(S,null,2)],{type:'applic
 function importData(event){var file=event.target.files[0];if(!file)return;if(!confirm('Dit vervangt ALLE huidige data. Zeker weten?')){event.target.value='';return;}var r=new FileReader();r.onload=function(e){try{S=JSON.parse(e.target.result);ensureNewFields();saveS();renderWkSchemaSelect();renderWorkout();showToast('Data geimporteerd!');}catch(err){showToast('Fout: '+err.message);}};r.readAsText(file);event.target.value='';}
 
 /* ─── PLANNER ─── */
+var plannerWeekOffset=0;
+function changeWeek(abs){
+  if(abs===0)plannerWeekOffset=0;
+  else plannerWeekOffset+=abs;
+  renderWeekChecklist();
+}
 var ACT_CFG={
   gym:{gridId:'gym-day-grid',lblId:'gym-target-lbl',selClass:'gym-sel',color:'var(--accent)'},
   hardlopen:{gridId:'run-day-grid',lblId:'run-target-lbl',selClass:'run-sel',color:'var(--info)'},
@@ -757,7 +801,14 @@ function toggleActivityDay(act,dayIdx){
 }
 function renderWeekChecklist(){
   ensureNewFields();
-  var mon=getWeekMon(0);var dates=getWeekDates(mon);
+  var mon=getWeekMon(plannerWeekOffset);var dates=getWeekDates(mon);
+  var lbl=document.getElementById('week-label');
+  if(lbl){
+    if(plannerWeekOffset===0)lbl.textContent='Deze week';
+    else if(plannerWeekOffset===1)lbl.textContent='Volgende week';
+    else if(plannerWeekOffset===-1)lbl.textContent='Vorige week';
+    else lbl.textContent=(plannerWeekOffset>0?'+':'')+plannerWeekOffset+' weken';
+  }
   var items=[];
   dates.forEach(function(ds,di){
     ['gym','hardlopen','zwemmen'].forEach(function(act){
@@ -827,7 +878,35 @@ function saveSetupToken(){
 }
 
 /* ─── INIT ─── */
-loadS();renderWkSchemaSelect();renderWorkout();updateGistUI();checkFirstRun();
+loadS();
+if(!S.programs.length){
+  S.programs.push({
+    id:'fullbody_default',
+    name:'Fullbody A',
+    exercises:[
+      {name:'Squat',sets:4,reps:8,type:'normal'},
+      {name:'Bench Press',sets:4,reps:8,type:'normal'},
+      {name:'Barbell Row',sets:4,reps:8,type:'normal'},
+      {name:'Overhead Press',sets:3,reps:10,type:'normal'},
+      {name:'Romanian Deadlift',sets:3,reps:10,type:'normal'},
+      {name:'Lat Pulldown',sets:3,reps:10,type:'normal'}
+    ]
+  });
+  S.programs.push({
+    id:'fullbody_b',
+    name:'Fullbody B',
+    exercises:[
+      {name:'Deadlift',sets:4,reps:5,type:'normal'},
+      {name:'Incline Bench Press',sets:4,reps:8,type:'normal'},
+      {name:'Cable Row',sets:4,reps:10,type:'normal'},
+      {name:'Dumbbell Shoulder Press',sets:3,reps:10,type:'normal'},
+      {name:'Leg Press',sets:3,reps:12,type:'normal'},
+      {name:'Pull-up',sets:3,reps:8,type:'normal'}
+    ]
+  });
+  saveS();
+}
+renderWkSchemaSelect();renderWorkout();updateGistUI();checkFirstRun();
 </script>
 </body>
 </html>
