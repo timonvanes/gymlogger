@@ -441,7 +441,7 @@ async function syncGoogleCalendar(){
       var res=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{
         method:'POST',
         headers:{'Authorization':'Bearer '+gcalToken,'Content-Type':'application/json'},
-        body:JSON.stringify({summary:actNames[e.act],start:{date:e.date},end:{date:e.date},colorId:colorIds[e.act]})
+        body:JSON.stringify({summary:actNames[e.act],start:{dateTime:e.date+'T09:00:00',timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone},end:{dateTime:e.date+'T10:00:00',timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone},colorId:colorIds[e.act]})
       });
       if(res.ok){var d=await res.json();createdIds.push(d.id);}
       else if(res.status===401){gcalToken='';localStorage.removeItem('gymtracker_gcal_token');updateGcalUI();connectGoogle();if(btn){btn.disabled=false;btn.textContent='Sync naar agenda';}return;}
@@ -505,8 +505,9 @@ function getWeekMon(offsetWeeks){
   var today=new Date();var dow=today.getDay();var mo=new Date(today);
   mo.setDate(today.getDate()+(dow===0?-6:1-dow)+offsetWeeks*7);mo.setHours(0,0,0,0);return mo;
 }
+function localDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function getWeekDates(mon){
-  var dates=[];for(var i=0;i<7;i++){var d=new Date(mon);d.setDate(mon.getDate()+i);dates.push(d.toISOString().slice(0,10));}return dates;
+  var dates=[];for(var i=0;i<7;i++){var d=new Date(mon);d.setDate(mon.getDate()+i);dates.push(localDateStr(d));}return dates;
 }
 
 /* ─── NAVIGATION ─── */
