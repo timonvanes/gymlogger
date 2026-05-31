@@ -185,6 +185,7 @@ label{display:block;font-size:11px;font-weight:600;color:var(--muted);letter-spa
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       <button id="gh-sync-btn" class="btn btn-primary btn-sm" onclick="syncToGist(false)">Nu synchroniseren</button>
       <button class="btn btn-ghost btn-sm" onclick="restoreFromGist()">Herstel van Gist</button>
+      <button class="btn btn-ghost btn-sm" onclick="resetGhToken()">Token wijzigen</button>
     </div>
   </div>
   <div id="prog-list"></div>
@@ -293,6 +294,15 @@ label{display:block;font-size:11px;font-weight:600;color:var(--muted);letter-spa
     <div style="display:flex;gap:8px"><button class="btn btn-danger btn-sm" onclick="delProg()">Verwijderen</button><button class="btn btn-ghost" style="flex:1" onclick="closeModal('m-prog-detail')">Sluiten</button></div>
   </div>
 </div>
+<div class="modal-overlay hidden" id="m-setup">
+  <div class="modal">
+    <div class="modal-title">⚙️ Eenmalige setup</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">Vul je GitHub Personal Access Token in. Deze wordt opgeslagen in je browser en is daarna nooit meer nodig.</p>
+    <div class="fg"><label>GitHub Token</label><input type="password" id="setup-token-in" placeholder="ghp_..." autocomplete="off" style="font-family:var(--mono);font-size:13px"></div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.5">Maak een token aan via <strong style="color:var(--text)">github.com → Settings → Developer settings → Personal access tokens</strong> met alleen de <strong style="color:var(--text)">gist</strong> scope.</div>
+    <button class="btn btn-primary" style="width:100%" onclick="saveSetupToken()">Opslaan &amp; doorgaan</button>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -302,8 +312,9 @@ var curNoteTarget=null,curProgId=null,tempProgEx=[];
 var timerIv=null,timerStart=null;
 
 /* ─── GITHUB GIST ─── */
-var GH={token:'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',gistId:localStorage.getItem('gymtracker_gh_gist')||'',lastSync:localStorage.getItem('gymtracker_gh_lastsync')||''};
-function saveGH(){localStorage.setItem('gymtracker_gh_gist',GH.gistId);localStorage.setItem('gymtracker_gh_lastsync',GH.lastSync);}
+var GH={token:localStorage.getItem('gymtracker_gh_token')||'',gistId:localStorage.getItem('gymtracker_gh_gist')||'',lastSync:localStorage.getItem('gymtracker_gh_lastsync')||''};
+function saveGH(){localStorage.setItem('gymtracker_gh_token',GH.token);localStorage.setItem('gymtracker_gh_gist',GH.gistId);localStorage.setItem('gymtracker_gh_lastsync',GH.lastSync);}
+function checkFirstRun(){if(!GH.token)openModal('m-setup');}
 async function syncToGist(silent){
   if(!GH.token){if(!silent)showToast('Geen token geconfigureerd');return;}
   var btn=document.getElementById('gh-sync-btn');if(btn&&!silent){btn.disabled=true;btn.textContent='Bezig...';}
@@ -806,8 +817,17 @@ function setTarget(act,val){
 var toastT;
 function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('show');},2500);}
 
+/* ─── SETUP ─── */
+function resetGhToken(){GH.token='';saveGH();document.getElementById('setup-token-in').value='';openModal('m-setup');}
+function saveSetupToken(){
+  var val=document.getElementById('setup-token-in').value.trim();
+  if(!val||!val.startsWith('ghp_')){showToast('Voer een geldig token in (begint met ghp_)');return;}
+  GH.token=val;saveGH();closeModal('m-setup');showToast('Token opgeslagen!');updateGistUI();
+  syncToGist(true);
+}
+
 /* ─── INIT ─── */
-loadS();renderWkSchemaSelect();renderWorkout();updateGistUI();
+loadS();renderWkSchemaSelect();renderWorkout();updateGistUI();checkFirstRun();
 </script>
 </body>
 </html>
