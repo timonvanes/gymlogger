@@ -142,6 +142,7 @@ label{display:block;font-size:11px;font-weight:600;color:var(--muted);letter-spa
 <div class="screen active" id="screen-workout">
   <div class="page-header"><h1>Workout</h1><span class="date-badge" id="today-date"></span></div>
   <div id="day-banner"></div>
+  <div id="last-training-card"></div>
   <div class="schema-row">
     <div style="flex:1"><label>Schema laden</label><select id="wk-schema-sel"><option value="">Kies schema...</option></select></div>
     <button class="btn btn-primary btn-sm" onclick="loadSchema()" style="margin-bottom:1px">Start</button>
@@ -534,7 +535,7 @@ function stopTimer(){if(!confirm('Timer stoppen?'))return;clearInterval(timerIv)
 /* ─── WORKOUT ─── */
 function renderWorkout(){
   var wrap=document.getElementById('wk-exercises');var empty=document.getElementById('wk-empty');
-  renderDayBanner();
+  renderDayBanner();renderLastTraining();
   if(!S.today.exercises.length){wrap.innerHTML='';empty.style.display='';return;}
   empty.style.display='none';wrap.innerHTML='';
   S.today.exercises.forEach(function(block,bi){
@@ -557,6 +558,14 @@ function renderDayBanner(){
     b.innerHTML='<div class="rest-banner"><div style="font-size:13px;color:var(--muted)">Rustdag 😴</div></div>';
   }
 }
+function renderLastTraining(){
+  var wrap=document.getElementById('last-training-card');if(!wrap)return;
+  if(!S.history.length){wrap.innerHTML='';return;}
+  var last=S.history.slice().sort(function(a,b){return b.date.localeCompare(a.date);})[0];
+  var names=last.exercises.flatMap(function(b){return b.exercises.map(function(e){return e.name;});});
+  var label=last.schemaName?last.schemaName:(names.slice(0,3).join(', ')+(names.length>3?'...':''));
+  wrap.innerHTML='<div class="card" style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Vorige training</div><div style="font-weight:700;font-size:14px">'+label+'</div></div><div class="date-badge">'+fmtShort(last.date)+'</div></div>';
+}
 function makeExCard(ex,bi,ei,inSS){
   var prev=getLastSets(ex.name);var pr=getPR(ex.name);
   var typeLabel=ex.type==='warmup'?'Warm-up':'';var rows='';
@@ -564,7 +573,8 @@ function makeExCard(ex,bi,ei,inSS){
     var p=prev[si];var prevStr=p&&p.weight?(p.weight+'kg x '+(p.reps||'?')):'--';
     var cw=(ex.setData&&ex.setData[si])?ex.setData[si].weight:'';var cr=(ex.setData&&ex.setData[si])?ex.setData[si].reps:ex.reps;
     var delta='';if(p&&p.weight&&cw!==''){var d=parseFloat(cw)-p.weight;if(d>0)delta='<br><span class="dp-pos">+'+d+'kg</span>';else if(d<0)delta='<br><span class="dp-neg">'+d+'kg</span>';}
-    rows+='<tr><td style="color:var(--muted);font-family:var(--mono);font-size:11px;width:20px">'+(si+1)+'</td><td><input class="wi" type="number" value="'+cw+'" placeholder="kg" min="0" step="0.5" onchange="updSet('+bi+','+ei+','+si+',\'weight\',this.value)"></td><td><input class="ri" type="number" value="'+cr+'" min="1" max="999" onchange="updSet('+bi+','+ei+','+si+',\'reps\',this.value)"></td><td class="prev-cell">'+prevStr+delta+'</td><td><button style="background:none;border:none;cursor:pointer;color:var(--danger);padding:3px" onclick="remSet('+bi+','+ei+','+si+')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button></td></tr>';
+    var copyBtn=si>0?'<button style="background:none;border:none;cursor:pointer;color:var(--muted);padding:3px" onclick="copyPrevSet('+bi+','+ei+','+si+')" title="Kopieer vorige set"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16V4h9M8 8h12v12H8z"/></svg></button>':'';
+    rows+='<tr><td style="color:var(--muted);font-family:var(--mono);font-size:11px;width:20px">'+(si+1)+'</td><td><input class="wi" type="number" inputmode="decimal" value="'+cw+'" placeholder="kg" min="0" step="0.5" onchange="updSet('+bi+','+ei+','+si+',\'weight\',this.value)"></td><td><input class="ri" type="number" inputmode="numeric" pattern="[0-9]*" value="'+cr+'" min="1" max="999" onchange="updSet('+bi+','+ei+','+si+',\'reps\',this.value)"></td><td class="prev-cell">'+prevStr+delta+'</td><td style="display:flex;gap:2px">'+copyBtn+'<button style="background:none;border:none;cursor:pointer;color:var(--danger);padding:3px" onclick="remSet('+bi+','+ei+','+si+')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button></td></tr>';
   }
   var prHtml=pr?'<span class="pr-chip">PR: '+pr.weight+'kg x '+pr.reps+'</span>':'';
   var noteHtml=ex.note?'<div class="inline-note">'+ex.note+'</div>':'';
@@ -579,6 +589,13 @@ function makeSupersetBlock(block,bi){
   return wrap;
 }
 function updSet(bi,ei,si,f,v){var ex=S.today.exercises[bi].exercises[ei];if(!ex.setData)ex.setData=[];if(!ex.setData[si])ex.setData[si]={weight:'',reps:ex.reps};ex.setData[si][f]=v;saveS();}
+function copyPrevSet(bi,ei,si){
+  var ex=S.today.exercises[bi].exercises[ei];if(!ex.setData)ex.setData=[];
+  var prevData=ex.setData[si-1];
+  if(!prevData||!prevData.weight){showToast('Geen vorige set om te kopieren');return;}
+  ex.setData[si]={weight:prevData.weight,reps:prevData.reps};
+  saveS();renderWorkout();
+}
 function addSet(bi,ei){S.today.exercises[bi].exercises[ei].sets++;saveS();renderWorkout();}
 function remSet(bi,ei,si){var ex=S.today.exercises[bi].exercises[ei];ex.sets--;if(ex.setData)ex.setData.splice(si,1);if(ex.sets<1){remBlock(bi);return;}saveS();renderWorkout();}
 function remBlock(bi){S.today.exercises.splice(bi,1);saveS();renderWorkout();}
@@ -621,12 +638,22 @@ function addExercise(){
 }
 function openExNote(bi,ei){curNoteTarget={bi:bi,ei:ei};var ex=S.today.exercises[bi].exercises[ei];document.getElementById('ex-note-title').textContent=ex.name+' notitie';document.getElementById('ex-note-text').value=ex.note||'';openModal('m-ex-note');}
 function saveExNote(){if(!curNoteTarget)return;S.today.exercises[curNoteTarget.bi].exercises[curNoteTarget.ei].note=document.getElementById('ex-note-text').value.trim();saveS();closeModal('m-ex-note');renderWorkout();}
-function saveWorkout(){if(!S.today.exercises.length){showToast('Geen oefeningen');return;}var ts=todayStr();var entry={date:ts,exercises:JSON.parse(JSON.stringify(S.today.exercises)),note:S.today.note};var idx=S.history.findIndex(function(h){return h.date===ts;});if(idx>=0)S.history[idx]=entry;else S.history.push(entry);saveS();showToast('Workout opgeslagen!');if(GH.token)syncToGist(true);}
+function saveWorkout(){
+  if(!S.today.exercises.length){showToast('Geen oefeningen');return;}
+  var ts=todayStr();
+  var entry={date:ts,exercises:JSON.parse(JSON.stringify(S.today.exercises)),note:S.today.note,schemaName:S.today.schemaName||''};
+  var idx=S.history.findIndex(function(h){return h.date===ts;});if(idx>=0)S.history[idx]=entry;else S.history.push(entry);
+  S.today={exercises:[],note:''};
+  if(timerIv){clearInterval(timerIv);timerIv=null;timerStart=null;document.getElementById('timer-bar').classList.remove('vis');}
+  saveS();showToast('Workout opgeslagen!');if(GH.token)syncToGist(true);
+  renderWorkout();
+}
 function clearWorkout(){if(S.today.exercises.length&&!confirm('Huidige workout wissen?'))return;S.today={exercises:[],note:''};if(timerIv){clearInterval(timerIv);timerIv=null;timerStart=null;document.getElementById('timer-bar').classList.remove('vis');}saveS();renderWorkout();}
 function renderWkSchemaSelect(){var sel=document.getElementById('wk-schema-sel');sel.innerHTML='<option value="">Kies schema...</option>'+S.programs.map(function(p){return'<option value="'+p.id+'">'+p.name+'</option>';}).join('');}
 function loadSchema(){
   var id=document.getElementById('wk-schema-sel').value;if(!id){showToast('Kies eerst een schema');return;}
   var prog=S.programs.find(function(p){return p.id===id;});if(!prog)return;
+  S.today.schemaName=prog.name;
   var existing=new Set(S.today.exercises.flatMap(function(b){return b.exercises.map(function(e){return e.name.toLowerCase();});}));
   var added=new Set();
   prog.exercises.forEach(function(ex){
