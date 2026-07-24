@@ -1,0 +1,5 @@
+.DS_Store
+Thumbs.db
+*token*.txt
+*.pem
+.env
