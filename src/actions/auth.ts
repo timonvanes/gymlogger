@@ -17,6 +17,26 @@ export async function login(formData: FormData) {
   redirect("/");
 }
 
+export async function signup(formData: FormData) {
+  const email = formData.get("email") as string;
+  const password = formData.get("password") as string;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signUp({ email, password });
+
+  if (error) {
+    redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+  }
+
+  if (data.session) {
+    redirect("/");
+  }
+
+  redirect(
+    `/login?message=${encodeURIComponent("Account aangemaakt! Check je e-mail om 'm te bevestigen voordat je inlogt.")}`
+  );
+}
+
 export async function logout() {
   const supabase = await createClient();
   await supabase.auth.signOut();

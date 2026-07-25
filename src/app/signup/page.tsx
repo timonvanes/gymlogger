@@ -1,26 +1,21 @@
 import Link from "next/link";
-import { login } from "@/actions/auth";
+import { signup } from "@/actions/auth";
 
-export default async function LoginPage({
+export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; message?: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
-  const { error, message } = await searchParams;
+  const { error } = await searchParams;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0e0e0f] px-4">
       <form
-        action={login}
+        action={signup}
         className="w-full max-w-sm space-y-4 rounded-2xl border border-[#3a3a3e] bg-[#1a1a1c] p-6"
       >
-        <h1 className="text-xl font-bold text-[#f0f0ee]">🏋️ Gym Tracker</h1>
+        <h1 className="text-xl font-bold text-[#f0f0ee]">🏋️ Account aanmaken</h1>
 
-        {message && (
-          <p className="rounded-md bg-[#1e2f1a] px-3 py-2 text-sm text-[#8aff6e]">
-            {message}
-          </p>
-        )}
         {error && (
           <p className="rounded-md bg-red-950 px-3 py-2 text-sm text-red-400">
             {error}
@@ -50,7 +45,8 @@ export default async function LoginPage({
             name="password"
             type="password"
             required
-            autoComplete="current-password"
+            minLength={6}
+            autoComplete="new-password"
             className="min-h-[44px] w-full rounded-lg border border-[#3a3a3e] bg-[#242427] px-3 py-2 text-base text-[#f0f0ee]"
           />
         </div>
@@ -59,13 +55,13 @@ export default async function LoginPage({
           type="submit"
           className="min-h-[44px] w-full rounded-lg bg-[#c8f542] px-3 py-2 text-base font-semibold text-[#0e0e0f] hover:opacity-90"
         >
-          Inloggen
+          Account aanmaken
         </button>
 
         <p className="text-center text-sm text-[#888884]">
-          Nog geen account?{" "}
-          <Link href="/signup" className="text-[#c8f542] hover:underline">
-            Registreren
+          Al een account?{" "}
+          <Link href="/login" className="text-[#c8f542] hover:underline">
+            Inloggen
           </Link>
         </p>
       </form>

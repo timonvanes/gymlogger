@@ -1,11 +1,30 @@
 export const GYM_APP_SCRIPT = `
 /* ─── STATE ─── */
-var S={today:{exercises:[],note:''},history:[],programs:[],weekPlan:{},activitySchedule:{gym:[],hardlopen:[],zwemmen:[]},activityDone:[],activityTargets:{gym:3,hardlopen:1,zwemmen:1}};
+var S={today:{exercises:[],note:''},history:[],programs:[],weekPlan:{},activitySchedule:{gym:[],hardlopen:[],zwemmen:[]},activityDone:[],activityTargets:{gym:3,hardlopen:1,zwemmen:1},exerciseNotes:{}};
 var curNoteTarget=null,curProgId=null,tempProgEx=[];
 var timerIv=null,timerStart=null;
 
+/* Bij focus op een gewicht/reps-veld: cursor achteraan zetten zodat je direct kan verwijderen */
+document.addEventListener('focus',function(e){
+  var el=e.target;
+  if(el&&el.tagName==='INPUT'&&(el.classList.contains('wi')||el.classList.contains('ri'))){
+    var len=el.value.length;
+    try{el.setSelectionRange(len,len);}catch(err){}
+  }
+},true);
+
 /* ─── AUTH ─── */
 function doLogout(){window.supabase.auth.signOut().then(function(){window.location.href='/login';});}
+function changePassword(){
+  var inp=document.getElementById('new-password-in');
+  var pw=inp.value;
+  if(pw.length<6){showToast('Minimaal 6 tekens');return;}
+  window.supabase.auth.updateUser({password:pw}).then(function(res){
+    if(res.error){showToast('Fout: '+res.error.message);return;}
+    inp.value='';
+    showToast('Wachtwoord gewijzigd!');
+  });
+}
 
 /* ─── GOOGLE CALENDAR ─── */
 var gcalToken=localStorage.getItem('gymtracker_gcal_token')||'';
@@ -151,6 +170,27 @@ function ensureNewFields(){
   if(!S.activitySchedule)S.activitySchedule={gym:[],hardlopen:[],zwemmen:[]};
   if(!S.activityDone)S.activityDone=[];
   if(!S.activityTargets)S.activityTargets={gym:3,hardlopen:1,zwemmen:1};
+  if(!S.exerciseNotes)S.exerciseNotes={};
+}
+function noteKey(name){return name.trim().toLowerCase();}
+function attachStoredNote(exObj){
+  ensureNewFields();
+  var stored=S.exerciseNotes[noteKey(exObj.name)];
+  if(!stored)return;
+  if(stored.pinned||stored.pendingShow){
+    exObj.note=stored.text;
+    if(!stored.pinned)stored.pendingShow=false;
+  }
+}
+function pinExNote(bi,ei){
+  ensureNewFields();
+  var ex=S.today.exercises[bi].exercises[ei];
+  var key=noteKey(ex.name);
+  if(!S.exerciseNotes[key])S.exerciseNotes[key]={text:ex.note,pinned:false,pendingShow:false};
+  S.exerciseNotes[key].pinned=!S.exerciseNotes[key].pinned;
+  S.exerciseNotes[key].text=ex.note;
+  saveS();renderWorkout();
+  showToast(S.exerciseNotes[key].pinned?'Notitie gepind':'Pin verwijderd');
 }
 var __saveTimer=null;
 function saveS(){
@@ -205,15 +245,35 @@ function tickTimer(){var e=Math.floor((Date.now()-timerStart)/1000);document.get
 function stopTimer(){if(!confirm('Timer stoppen?'))return;clearInterval(timerIv);timerIv=null;timerStart=null;document.getElementById('timer-bar').classList.remove('vis');}
 
 /* ─── WORKOUT ─── */
+function isWarmupBlock(block){return block.type==='normal'&&block.exercises[0].type==='warmup';}
 function renderWorkout(){
+  var warmupWrap=document.getElementById('wk-warmup');
   var wrap=document.getElementById('wk-exercises');var empty=document.getElementById('wk-empty');
   renderDayBanner();renderLastTraining();
-  if(!S.today.exercises.length){wrap.innerHTML='';empty.style.display='';return;}
-  empty.style.display='none';wrap.innerHTML='';
-  S.today.exercises.forEach(function(block,bi){
+  empty.style.display=S.today.exercises.length?'none':'';
+  var warmupBlocks=S.today.exercises.filter(isWarmupBlock);
+  var restBlocks=S.today.exercises.filter(function(b){return !isWarmupBlock(b);});
+  warmupWrap.innerHTML='';
+  if(warmupBlocks.length){
+    var hdr=document.createElement('div');
+    hdr.style.cssText='font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px';
+    hdr.textContent='Warming-up';
+    warmupWrap.appendChild(hdr);
+    warmupBlocks.forEach(function(block){
+      warmupWrap.appendChild(makeWarmupCard(block.exercises[0],S.today.exercises.indexOf(block)));
+    });
+  }
+  wrap.innerHTML='';
+  restBlocks.forEach(function(block){
+    var bi=S.today.exercises.indexOf(block);
     if(block.type==='superset'){wrap.appendChild(makeSupersetBlock(block,bi));}
     else{wrap.appendChild(makeExCard(block.exercises[0],bi,0,false));}
   });
+}
+function makeWarmupCard(ex,bi){
+  var div=document.createElement('div');div.className='card';
+  div.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><div><span class="badge badge-warmup" style="margin-right:6px">Warm-up</span><span style="font-weight:700;font-size:14px">'+ex.name+'</span></div><button class="btn-icon" onclick="remBlock('+bi+')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg></button></div><div style="font-size:12px;color:var(--muted);margin-top:5px;font-family:var(--mono)">'+ex.sets+' sets x '+ex.reps+' reps</div>';
+  return div;
 }
 function renderDayBanner(){
   var b=document.getElementById('day-banner');
@@ -245,11 +305,13 @@ function makeExCard(ex,bi,ei,inSS){
     var p=prev[si];var prevStr=p&&p.weight?(p.weight+'kg x '+(p.reps||'?')):'--';
     var cw=(ex.setData&&ex.setData[si])?ex.setData[si].weight:'';var cr=(ex.setData&&ex.setData[si])?ex.setData[si].reps:ex.reps;
     var delta='';if(p&&p.weight&&cw!==''){var d=parseFloat(cw)-p.weight;if(d>0)delta='<br><span class="dp-pos">+'+d+'kg</span>';else if(d<0)delta='<br><span class="dp-neg">'+d+'kg</span>';}
-    var copyBtn=si>0?'<button style="background:none;border:none;cursor:pointer;color:var(--muted);padding:3px" onclick="copyPrevSet('+bi+','+ei+','+si+')" title="Kopieer vorige set"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16V4h9M8 8h12v12H8z"/></svg></button>':'';
-    rows+='<tr><td style="color:var(--muted);font-family:var(--mono);font-size:11px;width:20px">'+(si+1)+'</td><td><input class="wi" type="number" inputmode="decimal" value="'+cw+'" placeholder="kg" min="0" step="0.5" onchange="updSet('+bi+','+ei+','+si+',\\'weight\\',this.value)"></td><td><input class="ri" type="number" inputmode="numeric" pattern="[0-9]*" value="'+cr+'" min="1" max="999" onchange="updSet('+bi+','+ei+','+si+',\\'reps\\',this.value)"></td><td class="prev-cell">'+prevStr+delta+'</td><td style="display:flex;gap:2px">'+copyBtn+'<button style="background:none;border:none;cursor:pointer;color:var(--danger);padding:3px" onclick="remSet('+bi+','+ei+','+si+')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button></td></tr>';
+    var copyBtn=si>0?'<button style="background:none;border:none;cursor:pointer;color:var(--muted);padding:8px" onclick="copyPrevSet('+bi+','+ei+','+si+')" title="Kopieer vorige set"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16V4h9M8 8h12v12H8z"/></svg></button>':'';
+    rows+='<tr><td style="color:var(--muted);font-family:var(--mono);font-size:11px;width:20px">'+(si+1)+'</td><td><input class="wi" type="text" inputmode="decimal" value="'+cw+'" placeholder="kg" onchange="updSet('+bi+','+ei+','+si+',\\'weight\\',this.value)"></td><td><input class="ri" type="text" inputmode="numeric" pattern="[0-9]*" value="'+cr+'" onchange="updSet('+bi+','+ei+','+si+',\\'reps\\',this.value)"></td><td class="prev-cell">'+prevStr+delta+'</td><td style="display:flex;align-items:center">'+copyBtn+'<button style="background:none;border:none;cursor:pointer;color:var(--danger);padding:8px" onclick="remSet('+bi+','+ei+','+si+')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button></td></tr>';
   }
   var prHtml=pr?'<span class="pr-chip">PR: '+pr.weight+'kg x '+pr.reps+'</span>':'';
-  var noteHtml=ex.note?'<div class="inline-note">'+ex.note+'</div>':'';
+  var storedNote=S.exerciseNotes&&S.exerciseNotes[noteKey(ex.name)];
+  var isPinned=!!(storedNote&&storedNote.pinned);
+  var noteHtml=ex.note?'<div class="inline-note" style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div style="flex:1">'+ex.note+'</div><button style="background:none;border:none;cursor:pointer;padding:4px;flex-shrink:0;color:'+(isPinned?'var(--accent)':'var(--muted)')+'" onclick="pinExNote('+bi+','+ei+')" title="'+(isPinned?'Gepind - altijd tonen':'Voor altijd tonen')+'"><svg width="14" height="14" viewBox="0 0 24 24" fill="'+(isPinned?'currentColor':'none')+'" stroke="currentColor" stroke-width="2"><path d="M12 17v5M8 3h8l-1 7 3 2.5V14H6v-1.5L9 10z"/></svg></button></div>':'';
   var div=document.createElement('div');div.className=inSS?'superset-ex':'card';
   div.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px"><div><div style="font-weight:700;font-size:15px">'+ex.name+'</div><div style="margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">'+(typeLabel?'<span class="badge badge-warmup">'+typeLabel+'</span>':'')+'<span style="font-size:11px;color:var(--muted)">'+ex.sets+' sets x '+ex.reps+' reps</span>'+prHtml+'</div></div>'+(inSS?'':'<button class="btn-icon" onclick="remBlock('+bi+')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg></button>')+'</div><table class="sets-table"><thead><tr><th>#</th><th>Gewicht</th><th>Reps</th><th>Vorige keer</th><th></th></tr></thead><tbody>'+rows+'</tbody></table><div class="ex-actions"><button class="btn btn-ghost btn-sm" onclick="addSet('+bi+','+ei+')">+ Set</button><button class="btn btn-ghost btn-sm" onclick="openExNote('+bi+','+ei+')">Notitie</button></div>'+noteHtml;
   return div;
@@ -303,13 +365,34 @@ function getAllExNames(){
 function addExercise(){
   var name=document.getElementById('ex-name').value.trim();if(!name){showToast('Vul een naam in');return;}
   var type=document.getElementById('ex-type').value;var sets=parseInt(document.getElementById('ex-sets').value)||3;var reps=parseInt(document.getElementById('ex-reps').value)||10;
-  if(type==='superset'){var pn=document.getElementById('ex-pair-name').value.trim();if(!pn){showToast('Vul de tweede oefening in');return;}var ps=parseInt(document.getElementById('ex-pair-sets').value)||3;var pr2=parseInt(document.getElementById('ex-pair-reps').value)||10;S.today.exercises.push({type:'superset',exercises:[{name:name,sets:sets,reps:reps,type:'superset',setData:[],note:''},{name:pn,sets:ps,reps:pr2,type:'superset',setData:[],note:''}]});}
-  else{S.today.exercises.push({type:'normal',exercises:[{name:name,sets:sets,reps:reps,type:type,setData:[],note:''}]});}
+  if(type==='superset'){
+    var pn=document.getElementById('ex-pair-name').value.trim();if(!pn){showToast('Vul de tweede oefening in');return;}
+    var ps=parseInt(document.getElementById('ex-pair-sets').value)||3;var pr2=parseInt(document.getElementById('ex-pair-reps').value)||10;
+    var exA={name:name,sets:sets,reps:reps,type:'superset',setData:[],note:''};
+    var exB={name:pn,sets:ps,reps:pr2,type:'superset',setData:[],note:''};
+    attachStoredNote(exA);attachStoredNote(exB);
+    S.today.exercises.push({type:'superset',exercises:[exA,exB]});
+  }
+  else{var newEx={name:name,sets:sets,reps:reps,type:type,setData:[],note:''};attachStoredNote(newEx);S.today.exercises.push({type:'normal',exercises:[newEx]});}
   saveS();closeModal('m-add-ex');renderWorkout();showToast('Toegevoegd');
   if(!timerIv)startTimer();
 }
 function openExNote(bi,ei){curNoteTarget={bi:bi,ei:ei};var ex=S.today.exercises[bi].exercises[ei];document.getElementById('ex-note-title').textContent=ex.name+' notitie';document.getElementById('ex-note-text').value=ex.note||'';openModal('m-ex-note');}
-function saveExNote(){if(!curNoteTarget)return;S.today.exercises[curNoteTarget.bi].exercises[curNoteTarget.ei].note=document.getElementById('ex-note-text').value.trim();saveS();closeModal('m-ex-note');renderWorkout();}
+function saveExNote(){
+  if(!curNoteTarget)return;
+  var ex=S.today.exercises[curNoteTarget.bi].exercises[curNoteTarget.ei];
+  var text=document.getElementById('ex-note-text').value.trim();
+  ex.note=text;
+  ensureNewFields();
+  var key=noteKey(ex.name);
+  if(text){
+    var existing=S.exerciseNotes[key];
+    S.exerciseNotes[key]={text:text,pinned:existing?existing.pinned:false,pendingShow:true};
+  }else{
+    delete S.exerciseNotes[key];
+  }
+  saveS();closeModal('m-ex-note');renderWorkout();
+}
 function saveWorkout(){
   if(!S.today.exercises.length){showToast('Geen oefeningen');return;}
   var ts=todayStr();
@@ -332,10 +415,15 @@ function loadSchema(){
     if(added.has(ex.name.toLowerCase()))return;
     if(ex.type==='superset'&&ex.supersetPair&&!existing.has(ex.name.toLowerCase())&&!existing.has((ex.supersetPair||'').toLowerCase())){
       var pair=prog.exercises.find(function(e){return e.name===ex.supersetPair;});
-      S.today.exercises.push({type:'superset',exercises:[{name:ex.name,sets:ex.sets,reps:ex.reps,type:'superset',setData:[],note:''},{name:ex.supersetPair,sets:pair?pair.sets:ex.sets,reps:pair?pair.reps:ex.reps,type:'superset',setData:[],note:''}]});
+      var exA={name:ex.name,sets:ex.sets,reps:ex.reps,type:'superset',setData:[],note:''};
+      var exB={name:ex.supersetPair,sets:pair?pair.sets:ex.sets,reps:pair?pair.reps:ex.reps,type:'superset',setData:[],note:''};
+      attachStoredNote(exA);attachStoredNote(exB);
+      S.today.exercises.push({type:'superset',exercises:[exA,exB]});
       added.add(ex.name.toLowerCase());added.add((ex.supersetPair||'').toLowerCase());
     }else if(!existing.has(ex.name.toLowerCase())){
-      S.today.exercises.push({type:'normal',exercises:[{name:ex.name,sets:ex.sets,reps:ex.reps,type:ex.type||'normal',setData:[],note:''}]});added.add(ex.name.toLowerCase());
+      var newEx={name:ex.name,sets:ex.sets,reps:ex.reps,type:ex.type||'normal',setData:[],note:''};
+      attachStoredNote(newEx);
+      S.today.exercises.push({type:'normal',exercises:[newEx]});added.add(ex.name.toLowerCase());
     }
   });
   saveS();startTimer();renderWorkout();showToast(prog.name+' geladen - timer gestart');
@@ -354,8 +442,13 @@ function renderHistory(){
       return'<div class="hd-ex"><div class="hd-ex-name">'+ex.name+tl+'</div><div class="hd-chips">'+(chips||'<span style="font-size:11px;color:var(--muted)">'+ex.sets+'x'+ex.reps+'</span>')+'</div>'+nl+'</div>';
     }).join('');}).join('');
     var nl=day.note?'<div style="margin-top:6px;padding:7px 10px;background:var(--surface2);border-radius:7px;font-size:12px;color:var(--muted)">'+day.note+'</div>':'';
-    return'<div class="history-day"><div class="hd-header"><span>'+fmtDate(day.date)+'</span><span>'+day.exercises.length+' blokken</span></div>'+blocks+nl+'</div>';
+    return'<div class="history-day"><div class="hd-header"><span>'+fmtDate(day.date)+'</span><span style="display:flex;align-items:center;gap:8px"><span>'+day.exercises.length+' blokken</span><button style="background:none;border:none;cursor:pointer;color:var(--danger);padding:4px" onclick="deleteHistoryDay(\\''+day.date+'\\')" title="Training verwijderen"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg></button></span></div>'+blocks+nl+'</div>';
   }).join('');
+}
+function deleteHistoryDay(date){
+  if(!confirm('Deze training verwijderen uit je historie?'))return;
+  S.history=S.history.filter(function(h){return h.date!==date;});
+  saveS();renderHistory();showToast('Training verwijderd');
 }
 
 /* ─── PROGRESSIE ─── */

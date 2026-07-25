@@ -28,6 +28,7 @@ export function buildGymAppHtml(email: string): string {
     <button class="btn btn-ghost btn-sm" onclick="saveWorkout()">Opslaan</button>
     <button class="btn btn-ghost btn-sm" onclick="clearWorkout()">Leeg</button>
   </div>
+  <div id="wk-warmup"></div>
   <div id="wk-exercises"></div>
   <div id="wk-empty" class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg><p>Kies een schema of voeg een oefening toe</p></div>
 </div>
@@ -105,13 +106,15 @@ export function buildGymAppHtml(email: string): string {
   <div class="page-header"><h1>Instellingen</h1></div>
 
   <div class="card" style="margin-bottom:13px">
-    <div class="account-row">
+    <div class="account-row" style="margin-bottom:13px">
       <div>
         <div style="font-weight:700;font-size:14px">Account</div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px">${email}</div>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="doLogout()">Uitloggen</button>
     </div>
+    <div class="fg" style="margin-bottom:8px"><label>Nieuw wachtwoord</label><input type="password" id="new-password-in" placeholder="Minimaal 6 tekens" autocomplete="new-password"></div>
+    <button class="btn btn-ghost btn-sm" onclick="changePassword()">Wachtwoord wijzigen</button>
   </div>
 
   <div class="card" style="margin-bottom:13px">
