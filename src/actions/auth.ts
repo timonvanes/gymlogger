@@ -28,6 +28,12 @@ export async function signup(formData: FormData) {
     redirect(`/signup?error=${encodeURIComponent(error.message)}`);
   }
 
+  if (data.user && data.user.identities && data.user.identities.length === 0) {
+    redirect(
+      `/signup?error=${encodeURIComponent("Dit e-mailadres heeft al een account. Log in plaats daarvan in.")}`
+    );
+  }
+
   if (data.session) {
     redirect("/");
   }
