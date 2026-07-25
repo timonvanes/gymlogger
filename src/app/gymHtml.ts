@@ -1,0 +1,183 @@
+export function buildGymAppHtml(email: string): string {
+  return `
+<div id="timer-bar">
+  <div><div class="timer-label">Workout tijd</div><div class="timer-display" id="timer-display">00:00</div></div>
+  <div style="flex:1"></div>
+  <button onclick="stopTimer()" style="background:none;border:none;cursor:pointer;padding:6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+</div>
+<nav>
+  <button class="active" onclick="goScreen('workout')" id="nav-workout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>Workout</button>
+  <button onclick="goScreen('history')" id="nav-history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Historie</button>
+  <button onclick="goScreen('progress')" id="nav-progress"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Progressie</button>
+  <button onclick="goScreen('programs')" id="nav-programs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>Schema</button>
+  <button onclick="goScreen('planner')" id="nav-planner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Planner</button>
+  <button onclick="goScreen('settings')" id="nav-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Instel.</button>
+</nav>
+
+<!-- WORKOUT -->
+<div class="screen active" id="screen-workout">
+  <div class="page-header"><h1>Workout</h1><span class="date-badge" id="today-date"></span></div>
+  <div id="day-banner"></div>
+  <div id="last-training-card"></div>
+  <div class="schema-row">
+    <div style="flex:1"><label>Schema laden</label><select id="wk-schema-sel"><option value="">Kies schema...</option></select></div>
+    <button class="btn btn-primary btn-sm" onclick="loadSchema()" style="margin-bottom:1px">Start</button>
+  </div>
+  <div class="action-row">
+    <button class="btn btn-ghost btn-sm" onclick="openAddEx()">+ Oefening</button>
+    <button class="btn btn-ghost btn-sm" onclick="saveWorkout()">Opslaan</button>
+    <button class="btn btn-ghost btn-sm" onclick="clearWorkout()">Leeg</button>
+  </div>
+  <div id="wk-exercises"></div>
+  <div id="wk-empty" class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg><p>Kies een schema of voeg een oefening toe</p></div>
+</div>
+
+<!-- HISTORIE -->
+<div class="screen" id="screen-history">
+  <div class="page-header"><h1>Historie</h1></div>
+  <div id="hist-list"></div>
+  <div id="hist-empty" class="empty-state" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><p>Nog geen workouts opgeslagen</p></div>
+</div>
+
+<!-- PROGRESSIE -->
+<div class="screen" id="screen-progress">
+  <div class="page-header"><h1>Progressie</h1></div>
+  <div id="activity-stats"></div>
+  <div class="fg"><label>Krachtoefening</label><select id="prog-sel" onchange="renderProgress()"><option value="">Kies een oefening...</option></select></div>
+  <div id="prog-content"></div>
+</div>
+
+<!-- SCHEMA -->
+<div class="screen" id="screen-programs">
+  <div class="page-header"><h1>Schema's</h1></div>
+  <div class="action-row">
+    <button class="btn btn-primary btn-sm" onclick="openCreateProg()">+ Nieuw</button>
+    <label class="btn btn-ghost btn-sm" style="cursor:pointer">Import schema<input type="file" accept=".json" onchange="importProgram(event)" style="display:none"></label>
+    <button class="btn btn-ghost btn-sm" onclick="exportData()">Export data</button>
+    <label class="btn btn-ghost btn-sm" style="cursor:pointer">Import data<input type="file" accept=".json" onchange="importData(event)" style="display:none"></label>
+  </div>
+  <div id="prog-list"></div>
+  <div id="prog-empty" class="empty-state" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg><p>Nog geen schema's</p></div>
+</div>
+
+<!-- PLANNER -->
+<div class="screen" id="screen-planner">
+  <div class="page-header"><h1>Planner</h1></div>
+
+  <div class="act-section">
+    <div class="act-header">
+      <div class="act-title" style="color:var(--accent)">🏋️ Gymdagen</div>
+      <div class="act-target-lbl" id="gym-target-lbl"></div>
+    </div>
+    <div class="day-grid" id="gym-day-grid"></div>
+  </div>
+
+  <div class="act-section">
+    <div class="act-header">
+      <div class="act-title" style="color:var(--info)">🏃 Hardloopdagen</div>
+      <div class="act-target-lbl" id="run-target-lbl"></div>
+    </div>
+    <div class="day-grid" id="run-day-grid"></div>
+  </div>
+
+  <div class="act-section">
+    <div class="act-header">
+      <div class="act-title" style="color:var(--purple)">🏊 Zwemdagen</div>
+      <div class="act-target-lbl" id="swim-target-lbl"></div>
+    </div>
+    <div class="day-grid" id="swim-day-grid"></div>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div style="font-weight:700;font-size:14px" id="week-label">Deze week</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="btn-icon" onclick="changeWeek(-1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px" onclick="changeWeek(0)">Nu</button>
+      <button class="btn-icon" onclick="changeWeek(1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+    </div>
+  </div>
+  <div class="week-progress" id="week-summary"></div>
+  <div class="card" id="week-checklist"><p style="font-size:13px;color:var(--muted)">Nog geen dagen ingepland.</p></div>
+</div>
+
+<!-- INSTELLINGEN -->
+<div class="screen" id="screen-settings">
+  <div class="page-header"><h1>Instellingen</h1></div>
+
+  <div class="card" style="margin-bottom:13px">
+    <div class="account-row">
+      <div>
+        <div style="font-weight:700;font-size:14px">Account</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">${email}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="doLogout()">Uitloggen</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:13px">
+    <div style="font-weight:700;font-size:14px;margin-bottom:12px">Streefdagen per week</div>
+    <div class="fr3">
+      <div class="fg"><label>🏋️ Gym</label><input type="number" id="set-gym-target" min="1" max="7" onchange="setTarget('gym',this.value)"></div>
+      <div class="fg"><label>🏃 Hardlopen</label><input type="number" id="set-run-target" min="1" max="7" onchange="setTarget('hardlopen',this.value)"></div>
+      <div class="fg"><label>🏊 Zwemmen</label><input type="number" id="set-swim-target" min="1" max="7" onchange="setTarget('zwemmen',this.value)"></div>
+    </div>
+    <div style="font-size:11px;color:var(--muted)">Streefdagen worden getoond als doel in de progressietab.</div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4285F4" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Google Agenda
+    </div>
+    <div style="font-size:12px;margin-bottom:10px" id="gcal-status-txt"></div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" id="gcal-connect-btn" onclick="connectGoogle()">Verbinden met Google</button>
+      <button class="btn btn-ghost btn-sm" id="gcal-sync-btn" style="display:none" onclick="syncGoogleCalendar()">Sync naar agenda</button>
+      <button class="btn btn-danger btn-sm" id="gcal-delete-btn" style="display:none" onclick="deleteGoogleCalendarEvents()">Verwijder uit agenda</button>
+      <button class="btn btn-ghost btn-sm" id="gcal-disconnect-btn" style="display:none" onclick="disconnectGoogle()">Loskoppelen</button>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.6">Synchroniseert je geplande gym-, hardloop- en zwemdagen naar je Google Agenda voor de komende 4 weken.</div>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay hidden" id="m-add-ex">
+  <div class="modal">
+    <div class="modal-title">Oefening toevoegen</div>
+    <div class="fg"><label>Naam</label><input type="text" id="ex-name" placeholder="bijv. Bench Press" autocomplete="off"><div id="ex-sug" style="display:none;background:var(--surface3);border:1px solid var(--border);border-radius:8px;margin-top:4px;overflow:hidden;max-height:170px;overflow-y:auto"></div></div>
+    <div class="fr"><div class="fg"><label>Sets</label><input type="number" id="ex-sets" value="3" min="1" max="30"></div><div class="fg"><label>Reps</label><input type="number" id="ex-reps" value="10" min="1" max="200"></div></div>
+    <div class="fg"><label>Type</label><select id="ex-type" onchange="onTypeChange()"><option value="normal">Normaal</option><option value="warmup">Warm-up</option><option value="superset">Superset</option></select></div>
+    <div id="ss-fields" style="display:none">
+      <div class="sdiv"><hr><span>Superset partner</span><hr></div>
+      <div class="fg"><label>Tweede oefening</label><input type="text" id="ex-pair-name" placeholder="bijv. Dips"></div>
+      <div class="fr"><div class="fg"><label>Sets</label><input type="number" id="ex-pair-sets" value="3" min="1" max="30"></div><div class="fg"><label>Reps</label><input type="number" id="ex-pair-reps" value="10" min="1" max="200"></div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px"><button class="btn btn-primary" style="flex:1" onclick="addExercise()">Toevoegen</button><button class="btn btn-ghost" onclick="closeModal('m-add-ex')">Annuleren</button></div>
+  </div>
+</div>
+<div class="modal-overlay hidden" id="m-ex-note">
+  <div class="modal">
+    <div class="modal-title" id="ex-note-title">Notitie</div>
+    <div class="fg"><textarea id="ex-note-text" placeholder="Hoe ging het? Techniek, vermoeidheid, PR?"></textarea></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-primary" style="flex:1" onclick="saveExNote()">Opslaan</button><button class="btn btn-ghost" onclick="closeModal('m-ex-note')">Annuleren</button></div>
+  </div>
+</div>
+<div class="modal-overlay hidden" id="m-create-prog">
+  <div class="modal">
+    <div class="modal-title">Nieuw schema</div>
+    <div class="fg"><label>Naam</label><input type="text" id="prog-name" placeholder="bijv. Push Day A"></div>
+    <div id="prog-ex-list" style="margin-bottom:9px"></div>
+    <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:13px" onclick="addProgEx()">+ Oefening</button>
+    <div style="display:flex;gap:8px"><button class="btn btn-primary" style="flex:1" onclick="saveProg()">Opslaan</button><button class="btn btn-ghost" onclick="closeModal('m-create-prog')">Annuleren</button></div>
+  </div>
+</div>
+<div class="modal-overlay hidden" id="m-prog-detail">
+  <div class="modal">
+    <div class="modal-title" id="pd-title"></div>
+    <div id="pd-body" style="margin-bottom:15px;font-size:13px;color:var(--muted)"></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-danger btn-sm" onclick="delProg()">Verwijderen</button><button class="btn btn-ghost" style="flex:1" onclick="closeModal('m-prog-detail')">Sluiten</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+`;
+}

@@ -1,360 +1,19 @@
-<!DOCTYPE html>
-<html lang="nl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Gym">
-<title>Gym Tracker</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<style>
-:root{--bg:#0e0e0f;--surface:#1a1a1c;--surface2:#242427;--surface3:#2e2e32;--border:#3a3a3e;--accent:#c8f542;--accent2:#8aff6e;--text:#f0f0ee;--muted:#888884;--danger:#ff5c5c;--warn:#ffb340;--info:#60a5fa;--purple:#c4a8ff;--radius:12px;--font:'Syne',sans-serif;--mono:'DM Mono',monospace}
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;overflow:hidden}
-#app{height:100dvh;display:flex;flex-direction:column;max-width:480px;margin:0 auto}
-nav{display:flex;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
-nav button{flex:1;padding:12px 2px 10px;background:none;border:none;color:var(--muted);font-family:var(--font);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;transition:color .15s}
-nav button.active{color:var(--accent)}
-nav button svg{width:18px;height:18px;stroke-width:1.8}
-.screen{display:none;flex:1;overflow-y:auto;padding:14px 14px 90px}
-.screen.active{display:block}
-.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
-.page-header h1{font-size:21px;font-weight:800;letter-spacing:-.02em}
-.date-badge{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--surface2);padding:4px 10px;border-radius:20px}
-.btn{display:inline-flex;align-items:center;gap:5px;padding:9px 15px;border-radius:var(--radius);border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer}
-.btn-primary{background:var(--accent);color:#0e0e0f}
-.btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
-.btn-danger{background:transparent;color:var(--danger);border:1px solid var(--danger)}
-.btn-sm{padding:7px 12px;font-size:12px}
-.btn-icon{padding:6px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:13px 14px;margin-bottom:10px}
-.badge{display:inline-flex;align-items:center;font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:20px}
-.badge-superset{background:#2a1f4a;color:#c4a8ff}
-.badge-warmup{background:#1e2f1a;color:var(--accent2)}
-.superset-block{border:1px solid #3d2f6a;border-radius:var(--radius);overflow:hidden;margin-bottom:10px}
-.superset-header{background:#1a1230;padding:7px 14px;display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;color:#c4a8ff;letter-spacing:.05em;text-transform:uppercase}
-.superset-ex{padding:13px 14px;border-bottom:1px solid #3d2f6a}
-.superset-ex:last-child{border-bottom:none}
-.sets-table{width:100%;border-collapse:collapse}
-.sets-table th{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:3px 5px}
-.sets-table td{padding:5px 5px;vertical-align:middle}
-.sets-table tr:not(:last-child) td{border-bottom:1px solid var(--surface2)}
-.wi,.ri{width:56px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;padding:5px 5px;text-align:center}
-.wi:focus,.ri:focus{outline:none;border-color:var(--accent)}
-.prev-cell{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.6}
-.dp-pos{color:var(--accent);font-size:9px}
-.dp-neg{color:var(--danger);font-size:9px}
-.pr-chip{display:inline-block;font-family:var(--mono);font-size:9px;background:#1e2f1a;color:var(--accent2);padding:2px 6px;border-radius:4px;margin-left:4px}
-.ex-actions{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
-.inline-note{background:var(--surface2);border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12px;color:var(--muted);line-height:1.5;border-left:2px solid var(--border)}
-input[type=text],input[type=number],textarea,select{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);font-size:14px;padding:9px 11px;width:100%}
-input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
-textarea{resize:vertical;min-height:80px}
-select option{background:var(--surface2)}
-label{display:block;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px}
-.fg{margin-bottom:13px}
-.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center;z-index:100;padding:16px}
-.modal-overlay.hidden{display:none}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:20px 20px 14px 14px;width:100%;max-width:480px;padding:18px;max-height:88dvh;overflow-y:auto}
-.modal-title{font-size:17px;font-weight:800;margin-bottom:16px}
-#timer-bar{display:none;background:var(--surface);border-bottom:1px solid var(--border);padding:9px 14px;flex-shrink:0;align-items:center;gap:10px}
-#timer-bar.vis{display:flex}
-.timer-display{font-family:var(--mono);font-size:22px;font-weight:500;color:var(--accent);letter-spacing:.05em}
-.timer-label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
-.schema-row{display:flex;gap:7px;margin-bottom:13px;align-items:flex-end}
-.schema-row select{flex:1}
-.history-day{margin-bottom:15px}
-.hd-header{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:5px 0;border-bottom:1px solid var(--border);margin-bottom:7px;display:flex;justify-content:space-between}
-.hd-ex{padding:7px 0;border-bottom:1px solid var(--surface2)}
-.hd-ex:last-child{border-bottom:none}
-.hd-ex-name{font-weight:700;font-size:13px;margin-bottom:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
-.hd-chips{display:flex;flex-wrap:wrap;gap:4px}
-.chip{font-family:var(--mono);font-size:11px;background:var(--surface2);padding:3px 7px;border-radius:5px}
-.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:13px}
-.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:11px 13px}
-.stat-label{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
-.stat-value{font-size:21px;font-weight:800;letter-spacing:-.02em}
-.stat-value.pos{color:var(--accent)}
-.stat-value.neg{color:var(--danger)}
-.chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:13px;margin-bottom:11px}
-.chart-title{font-size:10px;font-weight:600;color:var(--muted);margin-bottom:9px;letter-spacing:.04em;text-transform:uppercase}
-.prog-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:13px 14px;margin-bottom:9px;cursor:pointer}
-.prog-card-title{font-weight:700;margin-bottom:3px}
-.prog-card-meta{font-size:12px;color:var(--muted)}
-.empty-state{text-align:center;padding:40px 16px;color:var(--muted)}
-.empty-state svg{width:38px;height:38px;stroke-width:1.2;margin:0 auto 9px;display:block;opacity:.35}
-.empty-state p{font-size:13px}
-.action-row{display:flex;gap:7px;margin-bottom:13px;flex-wrap:wrap}
-.toast{position:fixed;bottom:82px;left:50%;transform:translateX(-50%);background:var(--accent);color:#0e0e0f;font-weight:700;font-size:13px;padding:9px 18px;border-radius:20px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
-.toast.show{opacity:1}
-.sdiv{display:flex;align-items:center;gap:8px;margin:11px 0}
-.sdiv hr{flex:1;border:none;border-top:1px solid var(--border)}
-.sdiv span{font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.05em;text-transform:uppercase}
-.train-banner{background:#1a2e17;border:1px solid #4a7a40;border-radius:var(--radius);padding:11px 13px;margin-bottom:13px;display:flex;align-items:center;gap:9px}
-.rest-banner{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:11px 13px;margin-bottom:13px;display:flex;align-items:center;gap:9px}
-::-webkit-scrollbar{width:3px}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
-
-/* Week planner */
-.act-section{margin-bottom:18px}
-.act-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.act-title{font-weight:700;font-size:14px}
-.act-target-lbl{font-size:11px;color:var(--muted);font-family:var(--mono)}
-.day-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:4px}
-.day-pill{border-radius:8px;padding:8px 3px;text-align:center;cursor:pointer;border:1px solid var(--border);background:var(--surface2);user-select:none;transition:background .12s,border-color .12s}
-.day-pill .dp-name{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
-.day-pill.gym-sel{background:var(--accent);border-color:var(--accent);color:#0e0e0f}
-.day-pill.run-sel{background:var(--info);border-color:var(--info);color:#0e0e0f}
-.day-pill.swim-sel{background:var(--purple);border-color:var(--purple);color:#0e0e0f}
-.checklist-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--surface2)}
-.checklist-item:last-child{border-bottom:none}
-.checklist-cb{width:20px;height:20px;flex-shrink:0;accent-color:var(--accent);cursor:pointer}
-.checklist-act{font-size:13px;font-weight:600;flex:1}
-.checklist-date{font-size:11px;color:var(--muted);font-family:var(--mono)}
-.checklist-act.done{text-decoration:line-through;opacity:.45}
-.week-progress{display:flex;gap:7px;margin-bottom:16px;flex-wrap:wrap}
-.week-prog-pill{flex:1;min-width:80px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 11px;text-align:center}
-.week-prog-val{font-size:20px;font-weight:800}
-.week-prog-lbl{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
-</style>
-</head>
-<body>
-<div id="app">
-<div id="timer-bar">
-  <div><div class="timer-label">Workout tijd</div><div class="timer-display" id="timer-display">00:00</div></div>
-  <div style="flex:1"></div>
-  <button onclick="stopTimer()" style="background:none;border:none;cursor:pointer;padding:6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
-</div>
-<nav>
-  <button class="active" onclick="goScreen('workout')" id="nav-workout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>Workout</button>
-  <button onclick="goScreen('history')" id="nav-history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Historie</button>
-  <button onclick="goScreen('progress')" id="nav-progress"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Progressie</button>
-  <button onclick="goScreen('programs')" id="nav-programs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>Schema</button>
-  <button onclick="goScreen('planner')" id="nav-planner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Planner</button>
-  <button onclick="goScreen('settings')" id="nav-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Instel.</button>
-</nav>
-
-<!-- WORKOUT -->
-<div class="screen active" id="screen-workout">
-  <div class="page-header"><h1>Workout</h1><span class="date-badge" id="today-date"></span></div>
-  <div id="day-banner"></div>
-  <div id="last-training-card"></div>
-  <div class="schema-row">
-    <div style="flex:1"><label>Schema laden</label><select id="wk-schema-sel"><option value="">Kies schema...</option></select></div>
-    <button class="btn btn-primary btn-sm" onclick="loadSchema()" style="margin-bottom:1px">Start</button>
-  </div>
-  <div class="action-row">
-    <button class="btn btn-ghost btn-sm" onclick="openAddEx()">+ Oefening</button>
-    <button class="btn btn-ghost btn-sm" onclick="saveWorkout()">Opslaan</button>
-    <button class="btn btn-ghost btn-sm" onclick="clearWorkout()">Leeg</button>
-  </div>
-  <div id="wk-exercises"></div>
-  <div id="wk-empty" class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg><p>Kies een schema of voeg een oefening toe</p></div>
-</div>
-
-<!-- HISTORIE -->
-<div class="screen" id="screen-history">
-  <div class="page-header"><h1>Historie</h1></div>
-  <div id="hist-list"></div>
-  <div id="hist-empty" class="empty-state" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><p>Nog geen workouts opgeslagen</p></div>
-</div>
-
-<!-- PROGRESSIE -->
-<div class="screen" id="screen-progress">
-  <div class="page-header"><h1>Progressie</h1></div>
-  <div id="activity-stats"></div>
-  <div class="fg"><label>Krachtoefening</label><select id="prog-sel" onchange="renderProgress()"><option value="">Kies een oefening...</option></select></div>
-  <div id="prog-content"></div>
-</div>
-
-<!-- SCHEMA -->
-<div class="screen" id="screen-programs">
-  <div class="page-header"><h1>Schema's</h1></div>
-  <div class="action-row">
-    <button class="btn btn-primary btn-sm" onclick="openCreateProg()">+ Nieuw</button>
-    <label class="btn btn-ghost btn-sm" style="cursor:pointer">Import schema<input type="file" accept=".json" onchange="importProgram(event)" style="display:none"></label>
-    <button class="btn btn-ghost btn-sm" onclick="exportData()">Export data</button>
-    <label class="btn btn-ghost btn-sm" style="cursor:pointer">Import data<input type="file" accept=".json" onchange="importData(event)" style="display:none"></label>
-  </div>
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:13px 14px;margin-bottom:13px">
-    <div style="font-weight:700;font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>GitHub Gist backup</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:10px" id="gh-last-sync">Nog niet gesynchroniseerd</div>
-    <div style="display:flex;gap:7px;flex-wrap:wrap">
-      <button id="gh-sync-btn" class="btn btn-primary btn-sm" onclick="syncToGist(false)">Nu synchroniseren</button>
-      <button class="btn btn-ghost btn-sm" onclick="restoreFromGist()">Herstel van Gist</button>
-      <button class="btn btn-ghost btn-sm" onclick="resetGhToken()">Token wijzigen</button>
-    </div>
-  </div>
-  <div id="prog-list"></div>
-  <div id="prog-empty" class="empty-state" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg><p>Nog geen schema's</p></div>
-</div>
-
-<!-- PLANNER -->
-<div class="screen" id="screen-planner">
-  <div class="page-header"><h1>Planner</h1></div>
-
-  <div class="act-section">
-    <div class="act-header">
-      <div class="act-title" style="color:var(--accent)">🏋️ Gymdagen</div>
-      <div class="act-target-lbl" id="gym-target-lbl"></div>
-    </div>
-    <div class="day-grid" id="gym-day-grid"></div>
-  </div>
-
-  <div class="act-section">
-    <div class="act-header">
-      <div class="act-title" style="color:var(--info)">🏃 Hardloopdagen</div>
-      <div class="act-target-lbl" id="run-target-lbl"></div>
-    </div>
-    <div class="day-grid" id="run-day-grid"></div>
-  </div>
-
-  <div class="act-section">
-    <div class="act-header">
-      <div class="act-title" style="color:var(--purple)">🏊 Zwemdagen</div>
-      <div class="act-target-lbl" id="swim-target-lbl"></div>
-    </div>
-    <div class="day-grid" id="swim-day-grid"></div>
-  </div>
-
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-    <div style="font-weight:700;font-size:14px" id="week-label">Deze week</div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <button class="btn-icon" onclick="changeWeek(-1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
-      <button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px" onclick="changeWeek(0)">Nu</button>
-      <button class="btn-icon" onclick="changeWeek(1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
-    </div>
-  </div>
-  <div class="week-progress" id="week-summary"></div>
-  <div class="card" id="week-checklist"><p style="font-size:13px;color:var(--muted)">Nog geen dagen ingepland.</p></div>
-</div>
-
-<!-- INSTELLINGEN -->
-<div class="screen" id="screen-settings">
-  <div class="page-header"><h1>Instellingen</h1></div>
-
-  <div class="card" style="margin-bottom:13px">
-    <div style="font-weight:700;font-size:14px;margin-bottom:12px">Streefdagen per week</div>
-    <div class="fr3">
-      <div class="fg"><label>🏋️ Gym</label><input type="number" id="set-gym-target" min="1" max="7" onchange="setTarget('gym',this.value)"></div>
-      <div class="fg"><label>🏃 Hardlopen</label><input type="number" id="set-run-target" min="1" max="7" onchange="setTarget('hardlopen',this.value)"></div>
-      <div class="fg"><label>🏊 Zwemmen</label><input type="number" id="set-swim-target" min="1" max="7" onchange="setTarget('zwemmen',this.value)"></div>
-    </div>
-    <div style="font-size:11px;color:var(--muted)">Streefdagen worden getoond als doel in de progressietab.</div>
-  </div>
-
-  <div class="card">
-    <div style="font-weight:700;font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4285F4" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-      Google Agenda
-    </div>
-    <div style="font-size:12px;margin-bottom:10px" id="gcal-status-txt"></div>
-    <div style="display:flex;gap:7px;flex-wrap:wrap">
-      <button class="btn btn-primary btn-sm" id="gcal-connect-btn" onclick="connectGoogle()">Verbinden met Google</button>
-      <button class="btn btn-ghost btn-sm" id="gcal-sync-btn" style="display:none" onclick="syncGoogleCalendar()">Sync naar agenda</button>
-      <button class="btn btn-danger btn-sm" id="gcal-delete-btn" style="display:none" onclick="deleteGoogleCalendarEvents()">Verwijder uit agenda</button>
-      <button class="btn btn-ghost btn-sm" id="gcal-disconnect-btn" style="display:none" onclick="disconnectGoogle()">Loskoppelen</button>
-    </div>
-    <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.6">Synchroniseert je geplande gym-, hardloop- en zwemdagen naar je Google Agenda voor de komende 4 weken.</div>
-  </div>
-</div>
-
-</div><!-- /app -->
-
-<!-- MODALS -->
-<div class="modal-overlay hidden" id="m-add-ex">
-  <div class="modal">
-    <div class="modal-title">Oefening toevoegen</div>
-    <div class="fg"><label>Naam</label><input type="text" id="ex-name" placeholder="bijv. Bench Press" autocomplete="off"><div id="ex-sug" style="display:none;background:var(--surface3);border:1px solid var(--border);border-radius:8px;margin-top:4px;overflow:hidden;max-height:170px;overflow-y:auto"></div></div>
-    <div class="fr"><div class="fg"><label>Sets</label><input type="number" id="ex-sets" value="3" min="1" max="30"></div><div class="fg"><label>Reps</label><input type="number" id="ex-reps" value="10" min="1" max="200"></div></div>
-    <div class="fg"><label>Type</label><select id="ex-type" onchange="onTypeChange()"><option value="normal">Normaal</option><option value="warmup">Warm-up</option><option value="superset">Superset</option></select></div>
-    <div id="ss-fields" style="display:none">
-      <div class="sdiv"><hr><span>Superset partner</span><hr></div>
-      <div class="fg"><label>Tweede oefening</label><input type="text" id="ex-pair-name" placeholder="bijv. Dips"></div>
-      <div class="fr"><div class="fg"><label>Sets</label><input type="number" id="ex-pair-sets" value="3" min="1" max="30"></div><div class="fg"><label>Reps</label><input type="number" id="ex-pair-reps" value="10" min="1" max="200"></div></div>
-    </div>
-    <div style="display:flex;gap:8px;margin-top:4px"><button class="btn btn-primary" style="flex:1" onclick="addExercise()">Toevoegen</button><button class="btn btn-ghost" onclick="closeModal('m-add-ex')">Annuleren</button></div>
-  </div>
-</div>
-<div class="modal-overlay hidden" id="m-ex-note">
-  <div class="modal">
-    <div class="modal-title" id="ex-note-title">Notitie</div>
-    <div class="fg"><textarea id="ex-note-text" placeholder="Hoe ging het? Techniek, vermoeidheid, PR?"></textarea></div>
-    <div style="display:flex;gap:8px"><button class="btn btn-primary" style="flex:1" onclick="saveExNote()">Opslaan</button><button class="btn btn-ghost" onclick="closeModal('m-ex-note')">Annuleren</button></div>
-  </div>
-</div>
-<div class="modal-overlay hidden" id="m-create-prog">
-  <div class="modal">
-    <div class="modal-title">Nieuw schema</div>
-    <div class="fg"><label>Naam</label><input type="text" id="prog-name" placeholder="bijv. Push Day A"></div>
-    <div id="prog-ex-list" style="margin-bottom:9px"></div>
-    <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:13px" onclick="addProgEx()">+ Oefening</button>
-    <div style="display:flex;gap:8px"><button class="btn btn-primary" style="flex:1" onclick="saveProg()">Opslaan</button><button class="btn btn-ghost" onclick="closeModal('m-create-prog')">Annuleren</button></div>
-  </div>
-</div>
-<div class="modal-overlay hidden" id="m-prog-detail">
-  <div class="modal">
-    <div class="modal-title" id="pd-title"></div>
-    <div id="pd-body" style="margin-bottom:15px;font-size:13px;color:var(--muted)"></div>
-    <div style="display:flex;gap:8px"><button class="btn btn-danger btn-sm" onclick="delProg()">Verwijderen</button><button class="btn btn-ghost" style="flex:1" onclick="closeModal('m-prog-detail')">Sluiten</button></div>
-  </div>
-</div>
-<div class="modal-overlay hidden" id="m-setup">
-  <div class="modal">
-    <div class="modal-title">⚙️ Eenmalige setup</div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">Vul je GitHub Personal Access Token in. Deze wordt opgeslagen in je browser en is daarna nooit meer nodig.</p>
-    <div class="fg"><label>GitHub Token</label><input type="password" id="setup-token-in" placeholder="ghp_..." autocomplete="off" style="font-family:var(--mono);font-size:13px"></div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.5">Maak een token aan via <strong style="color:var(--text)">github.com → Settings → Developer settings → Personal access tokens</strong> met alleen de <strong style="color:var(--text)">gist</strong> scope.</div>
-    <button class="btn btn-primary" style="width:100%" onclick="saveSetupToken()">Opslaan &amp; doorgaan</button>
-  </div>
-</div>
-<div class="toast" id="toast"></div>
-
-<script>
+export const GYM_APP_SCRIPT = `
 /* ─── STATE ─── */
 var S={today:{exercises:[],note:''},history:[],programs:[],weekPlan:{},activitySchedule:{gym:[],hardlopen:[],zwemmen:[]},activityDone:[],activityTargets:{gym:3,hardlopen:1,zwemmen:1}};
 var curNoteTarget=null,curProgId=null,tempProgEx=[];
 var timerIv=null,timerStart=null;
 
-/* ─── GITHUB GIST ─── */
-var GH={token:localStorage.getItem('gymtracker_gh_token')||'',gistId:localStorage.getItem('gymtracker_gh_gist')||'',lastSync:localStorage.getItem('gymtracker_gh_lastsync')||''};
-function saveGH(){localStorage.setItem('gymtracker_gh_token',GH.token);localStorage.setItem('gymtracker_gh_gist',GH.gistId);localStorage.setItem('gymtracker_gh_lastsync',GH.lastSync);}
-function checkFirstRun(){if(!GH.token)openModal('m-setup');}
-async function syncToGist(silent){
-  if(!GH.token){if(!silent)showToast('Geen token geconfigureerd');return;}
-  var btn=document.getElementById('gh-sync-btn');if(btn&&!silent){btn.disabled=true;btn.textContent='Bezig...';}
-  try{
-    var body={description:'GymLogger backup',public:false,files:{'gymlogger_data.json':{content:JSON.stringify(S,null,2)}}};
-    var url=GH.gistId?'https://api.github.com/gists/'+GH.gistId:'https://api.github.com/gists';
-    var res=await fetch(url,{method:GH.gistId?'PATCH':'POST',headers:{'Authorization':'token '+GH.token,'Content-Type':'application/json'},body:JSON.stringify(body)});
-    var data=await res.json();if(!res.ok)throw new Error(data.message||'API fout');
-    GH.gistId=data.id;GH.lastSync=new Date().toLocaleString('nl-NL');saveGH();updateGistUI();
-    if(!silent)showToast('✓ Gesynchroniseerd naar GitHub');
-  }catch(e){if(!silent)showToast('Sync fout: '+e.message);}
-  if(btn&&!silent){btn.disabled=false;btn.textContent='Nu synchroniseren';}
-}
-async function restoreFromGist(){
-  if(!GH.token||!GH.gistId){showToast('Geen Gist ID beschikbaar');return;}
-  if(!confirm('Lokale data vervangen met Gist backup?'))return;
-  try{
-    var res=await fetch('https://api.github.com/gists/'+GH.gistId,{headers:{'Authorization':'token '+GH.token}});
-    var data=await res.json();if(!res.ok)throw new Error(data.message||'API fout');
-    var file=data.files['gymlogger_data.json'];if(!file)throw new Error('Bestand niet gevonden');
-    S=JSON.parse(file.content);ensureNewFields();saveS();renderWkSchemaSelect();renderWorkout();showToast('✓ Hersteld van GitHub!');
-  }catch(e){showToast('Herstel fout: '+e.message);}
-}
-function updateGistUI(){var ls=document.getElementById('gh-last-sync');if(ls)ls.textContent=GH.lastSync?'Laatste sync: '+GH.lastSync:'Nog niet gesynchroniseerd';}
+/* ─── AUTH ─── */
+function doLogout(){window.supabase.auth.signOut().then(function(){window.location.href='/login';});}
 
 /* ─── GOOGLE CALENDAR ─── */
 var gcalToken=localStorage.getItem('gymtracker_gcal_token')||'';
 var tokenClient=null;
 var GCAL_CLIENT_ID='632168775632-045st8isen155snrd3223tq2nr88iued.apps.googleusercontent.com';
 
-window.addEventListener('load',function(){setTimeout(initGoogleAuth,1500);});
+if(document.readyState==='complete'){setTimeout(initGoogleAuth,1500);}
+else{window.addEventListener('load',function(){setTimeout(initGoogleAuth,1500);});}
 function initGoogleAuth(){
   if(typeof google==='undefined'||!google.accounts)return;
   tokenClient=google.accounts.oauth2.initTokenClient({
@@ -493,12 +152,25 @@ function ensureNewFields(){
   if(!S.activityDone)S.activityDone=[];
   if(!S.activityTargets)S.activityTargets={gym:3,hardlopen:1,zwemmen:1};
 }
-function loadS(){
-  try{var s=localStorage.getItem('gymtracker_v3');if(s)S=JSON.parse(s);}catch(e){}
+var __saveTimer=null;
+function saveS(){
+  clearTimeout(__saveTimer);
+  __saveTimer=setTimeout(function(){
+    window.supabase.from('gym_state').update({data:S,updated_at:new Date().toISOString()}).eq('user_id',window.currentUserId).then(function(res){
+      if(res.error)console.error('Opslaan mislukt:',res.error.message);
+    });
+  },350);
+}
+async function loadS(){
+  try{
+    var res=await window.supabase.from('gym_state').select('data').eq('user_id',window.currentUserId).maybeSingle();
+    if(res.error)throw res.error;
+    if(res.data&&res.data.data){S=res.data.data;}
+    else{await window.supabase.from('gym_state').insert({user_id:window.currentUserId,data:S});}
+  }catch(e){console.error('Laden mislukt:',e.message);showToast('Laden mislukt: '+e.message);}
   ensureNewFields();
   document.getElementById('today-date').textContent=fmtDate(todayStr());
 }
-function saveS(){localStorage.setItem('gymtracker_v3',JSON.stringify(S));}
 function todayStr(){return new Date().toISOString().slice(0,10);}
 function fmtDate(s){return new Date(s+'T12:00:00').toLocaleDateString('nl-NL',{weekday:'short',day:'numeric',month:'short',year:'numeric'});}
 function fmtShort(s){return new Date(s+'T12:00:00').toLocaleDateString('nl-NL',{day:'numeric',month:'short'});}
@@ -519,7 +191,7 @@ function goScreen(n){
   document.getElementById('nav-'+n).classList.add('active');
   if(n==='history')renderHistory();
   if(n==='progress'){renderProgressExList();renderActivityStats();}
-  if(n==='programs'){renderPrograms();updateGistUI();}
+  if(n==='programs'){renderPrograms();}
   if(n==='planner')renderPlanner();
   if(n==='settings')renderSettings();
   if(n==='workout'){renderWkSchemaSelect();renderWorkout();}
@@ -574,7 +246,7 @@ function makeExCard(ex,bi,ei,inSS){
     var cw=(ex.setData&&ex.setData[si])?ex.setData[si].weight:'';var cr=(ex.setData&&ex.setData[si])?ex.setData[si].reps:ex.reps;
     var delta='';if(p&&p.weight&&cw!==''){var d=parseFloat(cw)-p.weight;if(d>0)delta='<br><span class="dp-pos">+'+d+'kg</span>';else if(d<0)delta='<br><span class="dp-neg">'+d+'kg</span>';}
     var copyBtn=si>0?'<button style="background:none;border:none;cursor:pointer;color:var(--muted);padding:3px" onclick="copyPrevSet('+bi+','+ei+','+si+')" title="Kopieer vorige set"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16V4h9M8 8h12v12H8z"/></svg></button>':'';
-    rows+='<tr><td style="color:var(--muted);font-family:var(--mono);font-size:11px;width:20px">'+(si+1)+'</td><td><input class="wi" type="number" inputmode="decimal" value="'+cw+'" placeholder="kg" min="0" step="0.5" onchange="updSet('+bi+','+ei+','+si+',\'weight\',this.value)"></td><td><input class="ri" type="number" inputmode="numeric" pattern="[0-9]*" value="'+cr+'" min="1" max="999" onchange="updSet('+bi+','+ei+','+si+',\'reps\',this.value)"></td><td class="prev-cell">'+prevStr+delta+'</td><td style="display:flex;gap:2px">'+copyBtn+'<button style="background:none;border:none;cursor:pointer;color:var(--danger);padding:3px" onclick="remSet('+bi+','+ei+','+si+')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button></td></tr>';
+    rows+='<tr><td style="color:var(--muted);font-family:var(--mono);font-size:11px;width:20px">'+(si+1)+'</td><td><input class="wi" type="number" inputmode="decimal" value="'+cw+'" placeholder="kg" min="0" step="0.5" onchange="updSet('+bi+','+ei+','+si+',\\'weight\\',this.value)"></td><td><input class="ri" type="number" inputmode="numeric" pattern="[0-9]*" value="'+cr+'" min="1" max="999" onchange="updSet('+bi+','+ei+','+si+',\\'reps\\',this.value)"></td><td class="prev-cell">'+prevStr+delta+'</td><td style="display:flex;gap:2px">'+copyBtn+'<button style="background:none;border:none;cursor:pointer;color:var(--danger);padding:3px" onclick="remSet('+bi+','+ei+','+si+')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button></td></tr>';
   }
   var prHtml=pr?'<span class="pr-chip">PR: '+pr.weight+'kg x '+pr.reps+'</span>':'';
   var noteHtml=ex.note?'<div class="inline-note">'+ex.note+'</div>':'';
@@ -619,7 +291,7 @@ function onTypeChange(){document.getElementById('ss-fields').style.display=docum
 document.getElementById('ex-name').addEventListener('input',function(){
   var q=this.value.toLowerCase();var ns=getAllExNames().filter(function(n){return n.toLowerCase().includes(q)&&q.length>0;});
   var sg=document.getElementById('ex-sug');if(!ns.length){sg.style.display='none';return;}sg.style.display='';
-  sg.innerHTML=ns.slice(0,6).map(function(n){return'<div onclick="document.getElementById(\'ex-name\').value=this.textContent;document.getElementById(\'ex-sug\').style.display=\'none\'" style="padding:9px 11px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)" onmouseover="this.style.background=\'var(--surface3)\'" onmouseout="this.style.background=\'\'">'+n+'</div>';}).join('');
+  sg.innerHTML=ns.slice(0,6).map(function(n){return'<div onclick="document.getElementById(\\'ex-name\\').value=this.textContent;document.getElementById(\\'ex-sug\\').style.display=\\'none\\'" style="padding:9px 11px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)" onmouseover="this.style.background=\\'var(--surface3)\\'" onmouseout="this.style.background=\\'\\'">'+n+'</div>';}).join('');
 });
 function getAllExNames(){
   var ns=new Set();
@@ -645,7 +317,7 @@ function saveWorkout(){
   var idx=S.history.findIndex(function(h){return h.date===ts;});if(idx>=0)S.history[idx]=entry;else S.history.push(entry);
   S.today={exercises:[],note:''};
   if(timerIv){clearInterval(timerIv);timerIv=null;timerStart=null;document.getElementById('timer-bar').classList.remove('vis');}
-  saveS();showToast('Workout opgeslagen!');if(GH.token)syncToGist(true);
+  saveS();showToast('Workout opgeslagen!');
   renderWorkout();
 }
 function clearWorkout(){if(S.today.exercises.length&&!confirm('Huidige workout wissen?'))return;S.today={exercises:[],note:''};if(timerIv){clearInterval(timerIv);timerIv=null;timerStart=null;document.getElementById('timer-bar').classList.remove('vis');}saveS();renderWorkout();}
@@ -792,10 +464,9 @@ function barChart(entries){
 
 /* ─── SCHEMA'S ─── */
 function renderPrograms(){
-  updateGistUI();
   var list=document.getElementById('prog-list');var empty=document.getElementById('prog-empty');
   if(!S.programs.length){list.innerHTML='';empty.style.display='';return;}empty.style.display='none';
-  list.innerHTML=S.programs.map(function(p){return'<div class="prog-card" onclick="openProgDetail(\''+p.id+'\')"><div class="prog-card-title">'+p.name+'</div><div class="prog-card-meta">'+p.exercises.length+' oefen. - '+p.exercises.map(function(e){return e.name;}).slice(0,3).join(', ')+(p.exercises.length>3?'...':'')+'</div></div>';}).join('');
+  list.innerHTML=S.programs.map(function(p){return'<div class="prog-card" onclick="openProgDetail(\\''+p.id+'\\')"><div class="prog-card-title">'+p.name+'</div><div class="prog-card-meta">'+p.exercises.length+' oefen. - '+p.exercises.map(function(e){return e.name;}).slice(0,3).join(', ')+(p.exercises.length>3?'...':'')+'</div></div>';}).join('');
 }
 function openCreateProg(){tempProgEx=[];document.getElementById('prog-name').value='';renderProgExList();openModal('m-create-prog');}
 function addProgEx(){tempProgEx.push({name:'',sets:3,reps:10,type:'normal',supersetPair:''});renderProgExList();}
@@ -839,7 +510,7 @@ function renderActivityGrid(act){
   var grid=document.getElementById(cfg.gridId);if(!grid)return;
   grid.innerHTML=DAY_NAMES.map(function(d,i){
     var sel=schedule.includes(i)?cfg.selClass:'';
-    return'<div class="day-pill '+sel+'" onclick="toggleActivityDay(\''+act+'\','+i+')"><div class="dp-name">'+d+'</div></div>';
+    return'<div class="day-pill '+sel+'" onclick="toggleActivityDay(\\''+act+'\\','+i+')"><div class="dp-name">'+d+'</div></div>';
   }).join('');
 }
 function toggleActivityDay(act,dayIdx){
@@ -848,7 +519,6 @@ function toggleActivityDay(act,dayIdx){
   var pos=schedule.indexOf(dayIdx);
   if(pos>=0)schedule.splice(pos,1);else schedule.push(dayIdx);
   saveS();renderActivityGrid(act);renderWeekChecklist();renderDayBanner();
-  if(GH.token)syncToGist(true);
 }
 function renderWeekChecklist(){
   ensureNewFields();
@@ -889,7 +559,7 @@ function renderWeekChecklist(){
   wrap.innerHTML=items.map(function(item){
     var cfg=ACT_CFG[item.act];
     var doneClass=item.done?'done':'';
-    return'<div class="checklist-item"><input type="checkbox" class="checklist-cb"'+(item.done?' checked':'')+' onchange="toggleDone(\''+item.key+'\',this.checked)"><div class="checklist-act '+doneClass+'" style="color:'+cfg.color+'">'+ACT_LABELS[item.act]+'</div><div class="checklist-date">'+fmtShort(item.date)+'</div></div>';
+    return'<div class="checklist-item"><input type="checkbox" class="checklist-cb"'+(item.done?' checked':'')+' onchange="toggleDone(\\''+item.key+'\\',this.checked)"><div class="checklist-act '+doneClass+'" style="color:'+cfg.color+'">'+ACT_LABELS[item.act]+'</div><div class="checklist-date">'+fmtShort(item.date)+'</div></div>';
   }).join('');
 }
 function toggleDone(key,checked){
@@ -898,7 +568,6 @@ function toggleDone(key,checked){
   if(checked&&idx<0)S.activityDone.push(key);
   else if(!checked&&idx>=0)S.activityDone.splice(idx,1);
   saveS();renderWeekChecklist();
-  if(GH.token)syncToGist(true);
 }
 
 /* ─── INSTELLINGEN ─── */
@@ -919,45 +588,36 @@ function setTarget(act,val){
 var toastT;
 function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('show');},2500);}
 
-/* ─── SETUP ─── */
-function resetGhToken(){GH.token='';saveGH();document.getElementById('setup-token-in').value='';openModal('m-setup');}
-function saveSetupToken(){
-  var val=document.getElementById('setup-token-in').value.trim();
-  if(!val||!val.startsWith('ghp_')){showToast('Voer een geldig token in (begint met ghp_)');return;}
-  GH.token=val;saveGH();closeModal('m-setup');showToast('Token opgeslagen!');updateGistUI();
-  syncToGist(true);
-}
-
 /* ─── INIT ─── */
-loadS();
-if(!S.programs.length){
-  S.programs.push({
-    id:'fullbody_default',
-    name:'Fullbody A',
-    exercises:[
-      {name:'Squat',sets:4,reps:8,type:'normal'},
-      {name:'Bench Press',sets:4,reps:8,type:'normal'},
-      {name:'Barbell Row',sets:4,reps:8,type:'normal'},
-      {name:'Overhead Press',sets:3,reps:10,type:'normal'},
-      {name:'Romanian Deadlift',sets:3,reps:10,type:'normal'},
-      {name:'Lat Pulldown',sets:3,reps:10,type:'normal'}
-    ]
-  });
-  S.programs.push({
-    id:'fullbody_b',
-    name:'Fullbody B',
-    exercises:[
-      {name:'Deadlift',sets:4,reps:5,type:'normal'},
-      {name:'Incline Bench Press',sets:4,reps:8,type:'normal'},
-      {name:'Cable Row',sets:4,reps:10,type:'normal'},
-      {name:'Dumbbell Shoulder Press',sets:3,reps:10,type:'normal'},
-      {name:'Leg Press',sets:3,reps:12,type:'normal'},
-      {name:'Pull-up',sets:3,reps:8,type:'normal'}
-    ]
-  });
-  saveS();
-}
-renderWkSchemaSelect();renderWorkout();updateGistUI();checkFirstRun();
-</script>
-</body>
-</html>
+(async function initApp(){
+  await loadS();
+  if(!S.programs.length){
+    S.programs.push({
+      id:'fullbody_default',
+      name:'Fullbody A',
+      exercises:[
+        {name:'Squat',sets:4,reps:8,type:'normal'},
+        {name:'Bench Press',sets:4,reps:8,type:'normal'},
+        {name:'Barbell Row',sets:4,reps:8,type:'normal'},
+        {name:'Overhead Press',sets:3,reps:10,type:'normal'},
+        {name:'Romanian Deadlift',sets:3,reps:10,type:'normal'},
+        {name:'Lat Pulldown',sets:3,reps:10,type:'normal'}
+      ]
+    });
+    S.programs.push({
+      id:'fullbody_b',
+      name:'Fullbody B',
+      exercises:[
+        {name:'Deadlift',sets:4,reps:5,type:'normal'},
+        {name:'Incline Bench Press',sets:4,reps:8,type:'normal'},
+        {name:'Cable Row',sets:4,reps:10,type:'normal'},
+        {name:'Dumbbell Shoulder Press',sets:3,reps:10,type:'normal'},
+        {name:'Leg Press',sets:3,reps:12,type:'normal'},
+        {name:'Pull-up',sets:3,reps:8,type:'normal'}
+      ]
+    });
+    saveS();
+  }
+  renderWkSchemaSelect();renderWorkout();
+})();
+`;

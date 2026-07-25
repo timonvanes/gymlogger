@@ -1,0 +1,47 @@
+import type { Metadata, Viewport } from "next";
+import { Syne, DM_Mono } from "next/font/google";
+import Script from "next/script";
+import "./globals.css";
+import "./gym.css";
+
+const syne = Syne({
+  variable: "--font-syne",
+  subsets: ["latin"],
+  weight: ["400", "600", "700", "800"],
+});
+
+const dmMono = DM_Mono({
+  variable: "--font-dm-mono",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+});
+
+export const metadata: Metadata = {
+  title: "Gym Tracker",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Gym",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="nl" className={`${syne.variable} ${dmMono.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
+      </body>
+    </html>
+  );
+}
