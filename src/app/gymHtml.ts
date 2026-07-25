@@ -25,8 +25,8 @@ export function buildGymAppHtml(email: string): string {
   </div>
   <div class="action-row">
     <button class="btn btn-ghost btn-sm" onclick="openAddEx()">+ Oefening</button>
-    <button class="btn btn-ghost btn-sm" onclick="saveWorkout()">Opslaan</button>
-    <button class="btn btn-ghost btn-sm" onclick="clearWorkout()">Leeg</button>
+    <button class="btn btn-ghost btn-sm" onclick="saveWorkout()">Voltooi training</button>
+    <button class="btn btn-ghost btn-sm" onclick="clearWorkout()">Verwijder training</button>
   </div>
   <div id="wk-warmup"></div>
   <div id="wk-exercises"></div>
@@ -54,8 +54,11 @@ export function buildGymAppHtml(email: string): string {
   <div class="action-row">
     <button class="btn btn-primary btn-sm" onclick="openCreateProg()">+ Nieuw</button>
     <label class="btn btn-ghost btn-sm" style="cursor:pointer">Import schema<input type="file" accept=".json" onchange="importProgram(event)" style="display:none"></label>
-    <button class="btn btn-ghost btn-sm" onclick="exportData()">Export data</button>
-    <label class="btn btn-ghost btn-sm" style="cursor:pointer">Import data<input type="file" accept=".json" onchange="importData(event)" style="display:none"></label>
+  </div>
+  <div class="card" style="margin-bottom:13px">
+    <div style="font-weight:700;font-size:14px;margin-bottom:6px">🤖 Schema laten maken door AI</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Kopieer de prompt hieronder, plak 'm in ChatGPT/Claude en vul in wat voor schema je wilt. Plak het antwoord in een tekstbestand (.json) en gebruik "Import schema" hierboven.</div>
+    <button class="btn btn-ghost btn-sm" onclick="copyAiPrompt()">📋 Kopieer AI-prompt</button>
   </div>
   <div id="prog-list"></div>
   <div id="prog-empty" class="empty-state" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg><p>Nog geen schema's</p></div>
@@ -65,40 +68,33 @@ export function buildGymAppHtml(email: string): string {
 <div class="screen" id="screen-planner">
   <div class="page-header"><h1>Planner</h1></div>
 
-  <div class="act-section">
-    <div class="act-header">
-      <div class="act-title" style="color:var(--accent)">🏋️ Gymdagen</div>
-      <div class="act-target-lbl" id="gym-target-lbl"></div>
-    </div>
-    <div class="day-grid" id="gym-day-grid"></div>
-  </div>
-
-  <div class="act-section">
-    <div class="act-header">
-      <div class="act-title" style="color:var(--info)">🏃 Hardloopdagen</div>
-      <div class="act-target-lbl" id="run-target-lbl"></div>
-    </div>
-    <div class="day-grid" id="run-day-grid"></div>
-  </div>
-
-  <div class="act-section">
-    <div class="act-header">
-      <div class="act-title" style="color:var(--purple)">🏊 Zwemdagen</div>
-      <div class="act-target-lbl" id="swim-target-lbl"></div>
-    </div>
-    <div class="day-grid" id="swim-day-grid"></div>
-  </div>
+  <div id="activity-sections"></div>
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
     <div style="font-weight:700;font-size:14px" id="week-label">Deze week</div>
     <div style="display:flex;align-items:center;gap:8px">
       <button class="btn-icon" onclick="changeWeek(-1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
-      <button class="btn btn-ghost btn-sm" style="padding:5px 10px;font-size:11px" onclick="changeWeek(0)">Nu</button>
+      <button class="btn btn-ghost btn-sm" id="week-now-btn" style="padding:5px 10px;font-size:11px" onclick="changeWeek(0)">Nu</button>
       <button class="btn-icon" onclick="changeWeek(1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
     </div>
   </div>
   <div class="week-progress" id="week-summary"></div>
-  <div class="card" id="week-checklist"><p style="font-size:13px;color:var(--muted)">Nog geen dagen ingepland.</p></div>
+  <div class="card" id="week-checklist" style="margin-bottom:13px"><p style="font-size:13px;color:var(--muted)">Nog geen dagen ingepland.</p></div>
+
+  <div class="card">
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4285F4" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Google Agenda
+    </div>
+    <div style="font-size:12px;margin-bottom:10px" id="gcal-status-txt"></div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" id="gcal-connect-btn" onclick="connectGoogle()">Verbinden met Google</button>
+      <button class="btn btn-ghost btn-sm" id="gcal-sync-btn" style="display:none" onclick="syncGoogleCalendar()">Sync naar agenda</button>
+      <button class="btn btn-danger btn-sm" id="gcal-delete-btn" style="display:none" onclick="deleteGoogleCalendarEvents()">Verwijder uit agenda</button>
+      <button class="btn btn-ghost btn-sm" id="gcal-disconnect-btn" style="display:none" onclick="disconnectGoogle()">Loskoppelen</button>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.6">Synchroniseert je geplande dagen naar je Google Agenda voor de komende 4 weken.</div>
+  </div>
 </div>
 
 <!-- INSTELLINGEN -->
@@ -117,29 +113,14 @@ export function buildGymAppHtml(email: string): string {
     <button class="btn btn-ghost btn-sm" onclick="changePassword()">Wachtwoord wijzigen</button>
   </div>
 
-  <div class="card" style="margin-bottom:13px">
-    <div style="font-weight:700;font-size:14px;margin-bottom:12px">Streefdagen per week</div>
-    <div class="fr3">
-      <div class="fg"><label>🏋️ Gym</label><input type="number" id="set-gym-target" min="1" max="7" onchange="setTarget('gym',this.value)"></div>
-      <div class="fg"><label>🏃 Hardlopen</label><input type="number" id="set-run-target" min="1" max="7" onchange="setTarget('hardlopen',this.value)"></div>
-      <div class="fg"><label>🏊 Zwemmen</label><input type="number" id="set-swim-target" min="1" max="7" onchange="setTarget('zwemmen',this.value)"></div>
-    </div>
-    <div style="font-size:11px;color:var(--muted)">Streefdagen worden getoond als doel in de progressietab.</div>
-  </div>
-
   <div class="card">
-    <div style="font-weight:700;font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4285F4" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-      Google Agenda
+    <div style="font-weight:700;font-size:14px;margin-bottom:12px">Sporten</div>
+    <div id="activity-manage-list"></div>
+    <div style="display:flex;gap:7px;margin-top:9px">
+      <input type="text" id="new-activity-name" placeholder="Naam nieuwe sport">
+      <button class="btn btn-primary btn-sm" onclick="addActivity()" style="flex-shrink:0">+ Toevoegen</button>
     </div>
-    <div style="font-size:12px;margin-bottom:10px" id="gcal-status-txt"></div>
-    <div style="display:flex;gap:7px;flex-wrap:wrap">
-      <button class="btn btn-primary btn-sm" id="gcal-connect-btn" onclick="connectGoogle()">Verbinden met Google</button>
-      <button class="btn btn-ghost btn-sm" id="gcal-sync-btn" style="display:none" onclick="syncGoogleCalendar()">Sync naar agenda</button>
-      <button class="btn btn-danger btn-sm" id="gcal-delete-btn" style="display:none" onclick="deleteGoogleCalendarEvents()">Verwijder uit agenda</button>
-      <button class="btn btn-ghost btn-sm" id="gcal-disconnect-btn" style="display:none" onclick="disconnectGoogle()">Loskoppelen</button>
-    </div>
-    <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.6">Synchroniseert je geplande gym-, hardloop- en zwemdagen naar je Google Agenda voor de komende 4 weken.</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">Streefdagen worden getoond als doel in de progressietab. Gym kan niet verwijderd worden.</div>
   </div>
 </div>
 

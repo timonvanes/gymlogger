@@ -1,6 +1,12 @@
 export const GYM_APP_SCRIPT = `
 /* ─── STATE ─── */
-var S={today:{exercises:[],note:''},history:[],programs:[],weekPlan:{},activitySchedule:{gym:[],hardlopen:[],zwemmen:[]},activityDone:[],activityTargets:{gym:3,hardlopen:1,zwemmen:1},exerciseNotes:{}};
+var DEFAULT_ACTIVITIES=[
+  {key:'gym',name:'Gym',emoji:'🏋️',color:'var(--accent)',removable:false},
+  {key:'hardlopen',name:'Hardlopen',emoji:'🏃',color:'var(--info)',removable:true},
+  {key:'zwemmen',name:'Zwemmen',emoji:'🏊',color:'var(--purple)',removable:true}
+];
+var ACTIVITY_COLOR_PALETTE=['#ffb340','#ff5c5c','#5cd6ff','#ff8a5c','#8aff6e','#ff6ec7'];
+var S={today:{exercises:[],note:''},history:[],programs:[],weekPlan:{},activitySchedule:{gym:[],hardlopen:[],zwemmen:[]},activityDone:[],activityTargets:{gym:3,hardlopen:1,zwemmen:1},activities:DEFAULT_ACTIVITIES.map(function(a){return Object.assign({},a);}),exerciseNotes:{},gcalNeedsSync:false};
 var curNoteTarget=null,curProgId=null,tempProgEx=[];
 var timerIv=null,timerStart=null;
 
@@ -69,6 +75,11 @@ function updateGcalUI(){
     st.innerHTML='<span style="color:var(--muted)">Niet verbonden</span>';
     if(cb)cb.style.display='';if(sb)sb.style.display='none';if(db)db.style.display='none';
   }
+  if(sb){
+    ensureNewFields();
+    if(S.gcalNeedsSync){sb.classList.remove('btn-ghost');sb.classList.add('btn-primary');sb.textContent='Agenda bijwerken!';}
+    else{sb.classList.remove('btn-primary');sb.classList.add('btn-ghost');sb.textContent='Sync naar agenda';}
+  }
   updateGcalDeleteBtn();
 }
 /* gcalStore: { 'weekKey': ['eventId', ...], ... } — per week bijhouden */
@@ -92,15 +103,14 @@ async function deleteEventIds(ids){
 async function syncGoogleCalendar(){
   if(!gcalToken){connectGoogle();return;}
   ensureNewFields();
-  var actNames={gym:'🏋️ Gym',hardlopen:'🏃 Hardlopen',zwemmen:'🏊 Zwemmen'};
-  var colorIds={gym:'2',hardlopen:'6',zwemmen:'7'};
+  var actByKey={};S.activities.forEach(function(a,i){actByKey[a.key]={name:(a.emoji?a.emoji+' ':'')+a.name,colorId:String((i%11)+1)};});
   var mon=getWeekMon(plannerWeekOffset);
   var weekKey=mon.toISOString().slice(0,10);
   var weekDates=getWeekDates(mon);
   var events=[];
   weekDates.forEach(function(ds,di){
-    ['gym','hardlopen','zwemmen'].forEach(function(act){
-      if((S.activitySchedule[act]||[]).includes(di))events.push({act:act,date:ds});
+    S.activities.forEach(function(act){
+      if((S.activitySchedule[act.key]||[]).includes(di))events.push({act:act.key,date:ds});
     });
   });
   if(!events.length){showToast('Geen activiteiten ingepland');return;}
@@ -109,27 +119,28 @@ async function syncGoogleCalendar(){
   // Verwijder eventueel al bestaande events voor deze week eerst
   if(gcalStore[weekKey]&&gcalStore[weekKey].length){
     var r=await deleteEventIds(gcalStore[weekKey]);
-    if(r===-1){if(btn){btn.disabled=false;btn.textContent='Sync naar agenda';}return;}
+    if(r===-1){if(btn)btn.disabled=false;updateGcalUI();return;}
     delete gcalStore[weekKey];saveGcalStore();
   }
   // Maak nieuwe events aan
   var createdIds=[];var failed=0;
   for(var i=0;i<events.length;i++){
-    var e=events[i];
+    var e=events[i];var info=actByKey[e.act];if(!info)continue;
     try{
       var res=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{
         method:'POST',
         headers:{'Authorization':'Bearer '+gcalToken,'Content-Type':'application/json'},
-        body:JSON.stringify({summary:actNames[e.act],start:{dateTime:e.date+'T09:00:00',timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone},end:{dateTime:e.date+'T10:00:00',timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone},colorId:colorIds[e.act]})
+        body:JSON.stringify({summary:info.name,start:{dateTime:e.date+'T09:00:00',timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone},end:{dateTime:e.date+'T10:00:00',timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone},colorId:info.colorId})
       });
       if(res.ok){var d=await res.json();createdIds.push(d.id);}
-      else if(res.status===401){gcalToken='';localStorage.removeItem('gymtracker_gcal_token');updateGcalUI();connectGoogle();if(btn){btn.disabled=false;btn.textContent='Sync naar agenda';}return;}
+      else if(res.status===401){gcalToken='';localStorage.removeItem('gymtracker_gcal_token');if(btn)btn.disabled=false;updateGcalUI();connectGoogle();return;}
       else{failed++;}
     }catch(err){failed++;}
   }
   gcalStore[weekKey]=createdIds;saveGcalStore();
-  if(btn){btn.disabled=false;btn.textContent='Sync naar agenda';}
-  updateGcalDeleteBtn();
+  if(btn)btn.disabled=false;
+  S.gcalNeedsSync=false;saveS();
+  updateGcalUI();updateGcalDeleteBtn();
   showToast(createdIds.length+' events aangemaakt'+(failed?', '+failed+' mislukt':'')+'!');
 }
 async function deleteGoogleCalendarEvents(){
@@ -167,9 +178,15 @@ function updateGcalDeleteBtn(){
 function jsDayToIndex(jsDay){return(jsDay+6)%7;}   // JS 0(Sun)→6, 1(Mon)→0 ...
 function indexToJsDay(idx){return(idx+1)%7;}        // 0(Mon)→1, 6(Sun)→0
 function ensureNewFields(){
-  if(!S.activitySchedule)S.activitySchedule={gym:[],hardlopen:[],zwemmen:[]};
+  if(!S.activitySchedule)S.activitySchedule={};
   if(!S.activityDone)S.activityDone=[];
-  if(!S.activityTargets)S.activityTargets={gym:3,hardlopen:1,zwemmen:1};
+  if(!S.activityTargets)S.activityTargets={};
+  if(!S.activities)S.activities=DEFAULT_ACTIVITIES.map(function(a){return Object.assign({},a);});
+  if(S.gcalNeedsSync==null)S.gcalNeedsSync=false;
+  S.activities.forEach(function(a){
+    if(!S.activitySchedule[a.key])S.activitySchedule[a.key]=[];
+    if(S.activityTargets[a.key]==null)S.activityTargets[a.key]=1;
+  });
   if(!S.exerciseNotes)S.exerciseNotes={};
 }
 function noteKey(name){return name.trim().toLowerCase();}
@@ -279,12 +296,9 @@ function renderDayBanner(){
   var b=document.getElementById('day-banner');
   ensureNewFields();
   var todayIdx=jsDayToIndex(new Date().getDay());
-  var acts=[];
-  if(S.activitySchedule.gym.includes(todayIdx))acts.push({label:'🏋️ Gym',color:'var(--accent)'});
-  if(S.activitySchedule.hardlopen.includes(todayIdx))acts.push({label:'🏃 Hardlopen',color:'var(--info)'});
-  if(S.activitySchedule.zwemmen.includes(todayIdx))acts.push({label:'🏊 Zwemmen',color:'var(--purple)'});
+  var acts=S.activities.filter(function(a){return (S.activitySchedule[a.key]||[]).includes(todayIdx);});
   if(acts.length){
-    var labels=acts.map(function(a){return'<span style="color:'+a.color+';font-weight:700">'+a.label+'</span>';}).join('<span style="color:var(--muted)"> · </span>');
+    var labels=acts.map(function(a){return'<span style="color:'+a.color+';font-weight:700">'+(a.emoji?a.emoji+' ':'')+a.name+'</span>';}).join('<span style="color:var(--muted)"> · </span>');
     b.innerHTML='<div class="train-banner"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><div><div style="font-size:13px">Trainingsdag &mdash; '+labels+'</div></div></div>';
   }else{
     b.innerHTML='<div class="rest-banner"><div style="font-size:13px;color:var(--muted)">Rustdag 😴</div></div>';
@@ -480,11 +494,7 @@ function renderProgress(){
 function renderActivityStats(){
   ensureNewFields();
   var wrap=document.getElementById('activity-stats');if(!wrap)return;
-  var acts=[
-    {key:'gym',label:'Gym',emoji:'🏋️',color:'var(--accent)'},
-    {key:'hardlopen',label:'Hardlopen',emoji:'🏃',color:'var(--info)'},
-    {key:'zwemmen',label:'Zwemmen',emoji:'🏊',color:'var(--purple)'}
-  ];
+  var acts=S.activities;
   // Build 8-week data
   var weeklyData=[];
   for(var w=7;w>=0;w--){
@@ -505,12 +515,12 @@ function renderActivityStats(){
   acts.forEach(function(a){
     var target=S.activityTargets[a.key]||0;var done=thisWeek.counts[a.key].done;
     var ontrack=done>=target;
-    html+='<div class="stat-card"><div class="stat-label">'+a.emoji+' '+a.label+'</div><div class="stat-value" style="color:'+(ontrack?a.color:'var(--danger)')+'">'+done+'/'+target+'</div><div style="font-size:10px;color:var(--muted);margin-top:2px">streefdoel per week</div></div>';
+    html+='<div class="stat-card"><div class="stat-label">'+(a.emoji?a.emoji+' ':'')+a.name+'</div><div class="stat-value" style="color:'+(ontrack?a.color:'var(--danger)')+'">'+done+'/'+target+'</div><div style="font-size:10px;color:var(--muted);margin-top:2px">streefdoel per week</div></div>';
   });
   html+='</div>';
   acts.forEach(function(a){
     var target=S.activityTargets[a.key]||1;
-    html+='<div class="chart-wrap"><div class="chart-title">'+a.emoji+' '+a.label+' &mdash; 8 weken</div>'+activityChart(weeklyData,a.key,target,a.color)+'</div>';
+    html+='<div class="chart-wrap"><div class="chart-title">'+(a.emoji?a.emoji+' ':'')+a.name+' &mdash; 8 weken</div>'+activityChart(weeklyData,a.key,target,a.color)+'</div>';
   });
   html+='<div style="border-top:1px solid var(--border);margin:16px 0"></div>';
   wrap.innerHTML=html;
@@ -571,8 +581,29 @@ function saveProg(){var name=document.getElementById('prog-name').value.trim();i
 function openProgDetail(id){curProgId=id;var p=S.programs.find(function(x){return x.id===id;});document.getElementById('pd-title').textContent=p.name;document.getElementById('pd-body').innerHTML=p.exercises.map(function(e){return'<div style="padding:5px 0;border-bottom:1px solid var(--surface3)">'+e.name+' - '+e.sets+'x'+e.reps+' <span style="color:var(--muted);font-size:11px">'+(e.type||'normaal')+(e.supersetPair?' + '+e.supersetPair:'')+'</span></div>';}).join('');openModal('m-prog-detail');}
 function delProg(){if(!confirm('Schema verwijderen?'))return;S.programs=S.programs.filter(function(p){return p.id!==curProgId;});saveS();closeModal('m-prog-detail');renderPrograms();renderWkSchemaSelect();showToast('Schema verwijderd');}
 function importProgram(event){var file=event.target.files[0];if(!file)return;var r=new FileReader();r.onload=function(e){try{var data=JSON.parse(e.target.result);var ps=Array.isArray(data)?data:[data];ps.forEach(function(p){if(!p.name||!p.exercises)throw new Error('Ongeldig formaat');S.programs.push({id:Date.now().toString()+Math.random(),name:p.name,exercises:p.exercises});});saveS();renderPrograms();renderWkSchemaSelect();showToast(ps.length+" schema's geimporteerd");}catch(err){showToast('Fout: '+err.message);}};r.readAsText(file);event.target.value='';}
-function exportData(){var blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='gymtracker_backup_'+todayStr()+'.json';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);showToast('Backup gedownload');}
-function importData(event){var file=event.target.files[0];if(!file)return;if(!confirm('Dit vervangt ALLE huidige data. Zeker weten?')){event.target.value='';return;}var r=new FileReader();r.onload=function(e){try{S=JSON.parse(e.target.result);ensureNewFields();saveS();renderWkSchemaSelect();renderWorkout();showToast('Data geimporteerd!');}catch(err){showToast('Fout: '+err.message);}};r.readAsText(file);event.target.value='';}
+var AI_SCHEMA_PROMPT='Maak een trainingsschema in dit exacte JSON-formaat. Geef ALLEEN de JSON terug, zonder uitleg en zonder markdown code-block eromheen:\\n\\n'
+  +'{\\n'
+  +'  "name": "Naam van het schema",\\n'
+  +'  "exercises": [\\n'
+  +'    { "name": "Oefening naam", "sets": 4, "reps": 8, "type": "normal" },\\n'
+  +'    { "name": "Warm-up oefening", "sets": 2, "reps": 15, "type": "warmup" },\\n'
+  +'    { "name": "Oefening A", "sets": 3, "reps": 10, "type": "superset", "supersetPair": "Oefening B" },\\n'
+  +'    { "name": "Oefening B", "sets": 3, "reps": 10, "type": "superset", "supersetPair": "Oefening A" }\\n'
+  +'  ]\\n'
+  +'}\\n\\n'
+  +'Regels:\\n'
+  +'- "type" is altijd een van: "normal", "warmup", "superset"\\n'
+  +'- Bij "superset" verwijzen twee oefeningen naar elkaar via "supersetPair" (exact de naam van de andere oefening)\\n'
+  +'- "sets" en "reps" zijn getallen, geen tekst\\n'
+  +'- Wil je meerdere schema\\'s tegelijk? Zet ze dan in een JSON-array: [ {...}, {...} ]\\n\\n'
+  +'Mijn wensen voor het schema: [beschrijf hier wat voor schema je wilt \\u2014 bijv. spiergroepen, aantal dagen per week, ervaringsniveau, blessures, focus op kracht/hypertrofie, beschikbare apparatuur, etc.]';
+function copyAiPrompt(){
+  navigator.clipboard.writeText(AI_SCHEMA_PROMPT).then(function(){
+    showToast('Prompt gekopieerd! Plak in ChatGPT/Claude');
+  }).catch(function(){
+    showToast('Kopieren mislukt, probeer opnieuw');
+  });
+}
 
 /* ─── PLANNER ─── */
 var plannerWeekOffset=0;
@@ -581,37 +612,35 @@ function changeWeek(abs){
   else plannerWeekOffset+=abs;
   renderWeekChecklist();
 }
-var ACT_CFG={
-  gym:{gridId:'gym-day-grid',lblId:'gym-target-lbl',selClass:'gym-sel',color:'var(--accent)'},
-  hardlopen:{gridId:'run-day-grid',lblId:'run-target-lbl',selClass:'run-sel',color:'var(--info)'},
-  zwemmen:{gridId:'swim-day-grid',lblId:'swim-target-lbl',selClass:'swim-sel',color:'var(--purple)'}
-};
 var DAY_NAMES=['Ma','Di','Wo','Do','Vr','Za','Zo'];
-var ACT_LABELS={gym:'🏋️ Gym',hardlopen:'🏃 Hardlopen',zwemmen:'🏊 Zwemmen'};
 
 function renderPlanner(){
   ensureNewFields();
-  ['gym','hardlopen','zwemmen'].forEach(renderActivityGrid);
+  var wrap=document.getElementById('activity-sections');
+  wrap.innerHTML='';
+  S.activities.forEach(function(act){wrap.appendChild(makeActivitySection(act));});
   renderWeekChecklist();
+  updateGcalUI();
 }
-function renderActivityGrid(act){
-  var cfg=ACT_CFG[act];
-  var schedule=S.activitySchedule[act]||[];
-  var target=S.activityTargets[act]||0;
-  var lbl=document.getElementById(cfg.lblId);
-  if(lbl)lbl.textContent='Doel: '+target+'x/week';
-  var grid=document.getElementById(cfg.gridId);if(!grid)return;
-  grid.innerHTML=DAY_NAMES.map(function(d,i){
-    var sel=schedule.includes(i)?cfg.selClass:'';
-    return'<div class="day-pill '+sel+'" onclick="toggleActivityDay(\\''+act+'\\','+i+')"><div class="dp-name">'+d+'</div></div>';
+function makeActivitySection(act){
+  var schedule=S.activitySchedule[act.key]||[];
+  var target=S.activityTargets[act.key]||1;
+  var sec=document.createElement('div');sec.className='act-section';
+  var grid=DAY_NAMES.map(function(d,i){
+    var sel=schedule.includes(i);
+    var style=sel?'background:'+act.color+';border-color:'+act.color+';color:#0e0e0f':'';
+    return'<div class="day-pill" style="'+style+'" onclick="toggleActivityDay(\\''+act.key+'\\','+i+')"><div class="dp-name">'+d+'</div></div>';
   }).join('');
+  sec.innerHTML='<div class="act-header"><div class="act-title" style="color:'+act.color+'">'+(act.emoji?act.emoji+' ':'')+act.name+'</div><div class="act-target-lbl">Doel: '+target+'x/week</div></div><div class="day-grid">'+grid+'</div>';
+  return sec;
 }
-function toggleActivityDay(act,dayIdx){
+function toggleActivityDay(key,dayIdx){
   ensureNewFields();
-  var schedule=S.activitySchedule[act];
+  var schedule=S.activitySchedule[key];
   var pos=schedule.indexOf(dayIdx);
   if(pos>=0)schedule.splice(pos,1);else schedule.push(dayIdx);
-  saveS();renderActivityGrid(act);renderWeekChecklist();renderDayBanner();
+  S.gcalNeedsSync=true;
+  saveS();renderPlanner();renderDayBanner();
 }
 function renderWeekChecklist(){
   ensureNewFields();
@@ -623,11 +652,17 @@ function renderWeekChecklist(){
     else if(plannerWeekOffset===-1)lbl.textContent='Vorige week';
     else lbl.textContent=(plannerWeekOffset>0?'+':'')+plannerWeekOffset+' weken';
   }
+  var nowBtn=document.getElementById('week-now-btn');
+  if(nowBtn){
+    nowBtn.disabled=plannerWeekOffset===0;
+    nowBtn.style.opacity=plannerWeekOffset===0?'.4':'1';
+    nowBtn.style.cursor=plannerWeekOffset===0?'default':'pointer';
+  }
   var items=[];
   dates.forEach(function(ds,di){
-    ['gym','hardlopen','zwemmen'].forEach(function(act){
-      if((S.activitySchedule[act]||[]).includes(di)){
-        var key=ds+'_'+act;
+    S.activities.forEach(function(act){
+      if((S.activitySchedule[act.key]||[]).includes(di)){
+        var key=ds+'_'+act.key;
         items.push({date:ds,act:act,key:key,done:(S.activityDone||[]).includes(key)});
       }
     });
@@ -636,23 +671,21 @@ function renderWeekChecklist(){
   // Week summary pills
   var summaryWrap=document.getElementById('week-summary');
   if(summaryWrap){
-    var acts=['gym','hardlopen','zwemmen'];
-    summaryWrap.innerHTML=acts.map(function(act){
-      var target=S.activityTargets[act]||0;
-      var done=items.filter(function(it){return it.act===act&&it.done;}).length;
-      var planned=items.filter(function(it){return it.act===act;}).length;
+    summaryWrap.innerHTML=S.activities.map(function(act){
+      var target=S.activityTargets[act.key]||0;
+      var done=items.filter(function(it){return it.act.key===act.key&&it.done;}).length;
+      var planned=items.filter(function(it){return it.act.key===act.key;}).length;
       if(!planned)return'';
-      var col=done>=target?ACT_CFG[act].color.replace('var(--','').replace(')',''):'danger';
-      return'<div class="week-prog-pill"><div class="week-prog-val" style="color:var(--'+col+')">'+done+'/'+target+'</div><div class="week-prog-lbl">'+ACT_LABELS[act].split(' ')[0]+'</div></div>';
+      var col=done>=target?act.color:'var(--danger)';
+      return'<div class="week-prog-pill"><div class="week-prog-val" style="color:'+col+'">'+done+'/'+target+'</div><div class="week-prog-lbl">'+act.name+'</div></div>';
     }).filter(Boolean).join('');
   }
 
   var wrap=document.getElementById('week-checklist');if(!wrap)return;
   if(!items.length){wrap.innerHTML='<p style="font-size:13px;color:var(--muted)">Nog geen dagen ingepland. Selecteer hierboven je trainingsdagen.</p>';return;}
   wrap.innerHTML=items.map(function(item){
-    var cfg=ACT_CFG[item.act];
     var doneClass=item.done?'done':'';
-    return'<div class="checklist-item"><input type="checkbox" class="checklist-cb"'+(item.done?' checked':'')+' onchange="toggleDone(\\''+item.key+'\\',this.checked)"><div class="checklist-act '+doneClass+'" style="color:'+cfg.color+'">'+ACT_LABELS[item.act]+'</div><div class="checklist-date">'+fmtShort(item.date)+'</div></div>';
+    return'<div class="checklist-item"><input type="checkbox" class="checklist-cb"'+(item.done?' checked':'')+' onchange="toggleDone(\\''+item.key+'\\',this.checked)"><div class="checklist-act '+doneClass+'" style="color:'+item.act.color+'">'+(item.act.emoji?item.act.emoji+' ':'')+item.act.name+'</div><div class="checklist-date">'+fmtShort(item.date)+'</div></div>';
   }).join('');
 }
 function toggleDone(key,checked){
@@ -666,15 +699,41 @@ function toggleDone(key,checked){
 /* ─── INSTELLINGEN ─── */
 function renderSettings(){
   ensureNewFields();
-  var gi=document.getElementById('set-gym-target');var ri=document.getElementById('set-run-target');var si=document.getElementById('set-swim-target');
-  if(gi)gi.value=S.activityTargets.gym;if(ri)ri.value=S.activityTargets.hardlopen;if(si)si.value=S.activityTargets.zwemmen;
-  updateGcalUI();
+  renderActivityManageList();
 }
-function setTarget(act,val){
+function renderActivityManageList(){
+  var wrap=document.getElementById('activity-manage-list');if(!wrap)return;
+  wrap.innerHTML=S.activities.map(function(act){
+    var delBtn=act.removable?'<button class="btn-icon" onclick="removeActivity(\\''+act.key+'\\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button>':'<div style="width:32px"></div>';
+    return'<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--surface2)"><div style="flex:1;font-weight:600;font-size:13px">'+(act.emoji?act.emoji+' ':'')+act.name+'</div><input type="number" min="1" max="7" value="'+(S.activityTargets[act.key]||1)+'" style="width:56px" onchange="setTarget(\\''+act.key+'\\',this.value)">'+delBtn+'</div>';
+  }).join('');
+}
+function setTarget(key,val){
   ensureNewFields();
-  var key={gym:'gym',hardlopen:'hardlopen',zwemmen:'zwemmen'}[act]||act;
   S.activityTargets[key]=Math.max(1,parseInt(val)||1);
   saveS();renderPlanner();renderActivityStats();
+}
+function addActivity(){
+  ensureNewFields();
+  var inp=document.getElementById('new-activity-name');
+  var name=inp.value.trim();
+  if(!name){showToast('Vul een naam in');return;}
+  var color=ACTIVITY_COLOR_PALETTE[S.activities.length%ACTIVITY_COLOR_PALETTE.length];
+  var key=name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')+'_'+Date.now().toString(36);
+  S.activities.push({key:key,name:name,emoji:'',color:color,removable:true});
+  S.activityTargets[key]=1;S.activitySchedule[key]=[];
+  inp.value='';
+  saveS();renderSettings();renderPlanner();renderActivityStats();renderDayBanner();
+  showToast('Sport toegevoegd');
+}
+function removeActivity(key){
+  if(!confirm('Deze sport verwijderen? Geplande dagen en voortgang hiervoor gaan verloren.'))return;
+  S.activities=S.activities.filter(function(a){return a.key!==key;});
+  delete S.activityTargets[key];delete S.activitySchedule[key];
+  S.activityDone=(S.activityDone||[]).filter(function(d){return !d.endsWith('_'+key);});
+  S.gcalNeedsSync=true;
+  saveS();renderSettings();renderPlanner();renderActivityStats();renderDayBanner();
+  showToast('Sport verwijderd');
 }
 
 /* ─── TOAST ─── */
