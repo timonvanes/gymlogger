@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { login } from "@/actions/auth";
+import { Logo } from "@/app/Logo";
 
 export default async function LoginPage({
   searchParams,
@@ -14,7 +15,10 @@ export default async function LoginPage({
         action={login}
         className="w-full max-w-sm space-y-4 rounded-2xl border border-[#3a3a3e] bg-[#1a1a1c] p-6"
       >
-        <h1 className="text-xl font-bold text-[#f0f0ee]">🏋️ Gym Tracker</h1>
+        <div className="flex items-center gap-3">
+          <Logo size={44} />
+          <h1 className="text-xl font-bold text-[#f0f0ee]">Gym Tracker</h1>
+        </div>
 
         {message && (
           <p className="rounded-md bg-[#1e2f1a] px-3 py-2 text-sm text-[#8aff6e]">

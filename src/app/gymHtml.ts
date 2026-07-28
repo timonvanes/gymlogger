@@ -6,7 +6,7 @@ export function buildGymAppHtml(email: string): string {
   <button onclick="stopTimer()" style="background:none;border:none;cursor:pointer;padding:6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
 </div>
 <nav>
-  <button class="active" onclick="goScreen('workout')" id="nav-workout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>Workout</button>
+  <button class="active" onclick="goScreen('workout')" id="nav-workout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="9" width="4" height="6" rx="1.2"/><rect x="17" y="9" width="4" height="6" rx="1.2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>Workout</button>
   <button onclick="goScreen('history')" id="nav-history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Historie</button>
   <button onclick="goScreen('progress')" id="nav-progress"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Progressie</button>
   <button onclick="goScreen('programs')" id="nav-programs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>Schema</button>
@@ -30,7 +30,7 @@ export function buildGymAppHtml(email: string): string {
   </div>
   <div id="wk-warmup"></div>
   <div id="wk-exercises"></div>
-  <div id="wk-empty" class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg><p>Kies een schema of voeg een oefening toe</p></div>
+  <div id="wk-empty" class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="9" width="4" height="6" rx="1.2"/><rect x="17" y="9" width="4" height="6" rx="1.2"/><line x1="7" y1="12" x2="17" y2="12"/></svg><p>Kies een schema of voeg een oefening toe</p></div>
 </div>
 
 <!-- HISTORIE -->

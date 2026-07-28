@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signup } from "@/actions/auth";
+import { Logo } from "@/app/Logo";
 
 export default async function SignupPage({
   searchParams,
@@ -14,7 +15,10 @@ export default async function SignupPage({
         action={signup}
         className="w-full max-w-sm space-y-4 rounded-2xl border border-[#3a3a3e] bg-[#1a1a1c] p-6"
       >
-        <h1 className="text-xl font-bold text-[#f0f0ee]">🏋️ Account aanmaken</h1>
+        <div className="flex items-center gap-3">
+          <Logo size={44} />
+          <h1 className="text-xl font-bold text-[#f0f0ee]">Account aanmaken</h1>
+        </div>
 
         {error && (
           <p className="rounded-md bg-red-950 px-3 py-2 text-sm text-red-400">
