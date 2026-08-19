@@ -188,6 +188,12 @@ function ensureNewFields(){
     if(S.activityTargets[a.key]==null)S.activityTargets[a.key]=1;
   });
   if(!S.exerciseNotes)S.exerciseNotes={};
+  if(!S.nutrition)S.nutrition={};
+  if(!S.nutrition.targets)S.nutrition.targets={calories:2200,protein:150,carbs:220,fat:70};
+  if(!S.nutrition.dinnerDefault)S.nutrition.dinnerDefault={calories:700,protein:35,carbs:60,fat:25};
+  if(!S.nutrition.pool)S.nutrition.pool=[];
+  if(!S.nutrition.log)S.nutrition.log={};
+  if(!S.nutrition.shoppingChecked)S.nutrition.shoppingChecked={};
 }
 function noteKey(name){return name.trim().toLowerCase();}
 function attachStoredNote(exObj){
@@ -246,6 +252,7 @@ function goScreen(n){
   document.querySelectorAll('nav button').forEach(function(b){b.classList.remove('active');});
   document.getElementById('screen-'+n).classList.add('active');
   document.getElementById('nav-'+n).classList.add('active');
+  if(n==='nutrition')renderNutrition();
   if(n==='history')renderHistory();
   if(n==='progress'){renderProgressExList();renderActivityStats();}
   if(n==='programs'){renderPrograms();}
@@ -441,6 +448,160 @@ function loadSchema(){
     }
   });
   saveS();startTimer();renderWorkout();showToast(prog.name+' geladen - timer gestart');
+}
+
+/* ─── VOEDING ─── */
+var MEAL_LABELS={ontbijt:'Ontbijt',lunch:'Lunch',snack:'Snacks'};
+function todayNutritionLog(){
+  ensureNewFields();
+  var ts=todayStr();
+  if(!S.nutrition.log[ts])S.nutrition.log[ts]={ontbijt:null,lunch:null,snacks:[]};
+  return S.nutrition.log[ts];
+}
+function calcNutritionTotals(){
+  ensureNewFields();
+  var log=todayNutritionLog();
+  var totals={calories:0,protein:0,carbs:0,fat:0};
+  function addItem(id){
+    var item=S.nutrition.pool.find(function(p){return p.id===id;});
+    if(!item)return;
+    totals.calories+=item.calories||0;totals.protein+=item.protein||0;totals.carbs+=item.carbs||0;totals.fat+=item.fat||0;
+  }
+  if(log.ontbijt)addItem(log.ontbijt);
+  if(log.lunch)addItem(log.lunch);
+  (log.snacks||[]).forEach(addItem);
+  var d=S.nutrition.dinnerDefault;
+  totals.calories+=d.calories||0;totals.protein+=d.protein||0;totals.carbs+=d.carbs||0;totals.fat+=d.fat||0;
+  return totals;
+}
+function renderNutrition(){
+  ensureNewFields();
+  var dd=document.getElementById('nutrition-date');if(dd)dd.textContent=fmtDate(todayStr());
+  renderNutritionProgress();
+  renderNutritionMeals();
+  renderShoppingList();
+}
+function renderNutritionProgress(){
+  var wrap=document.getElementById('nutrition-progress');if(!wrap)return;
+  var totals=calcNutritionTotals();
+  var t=S.nutrition.targets;
+  var rows=[
+    {label:'Calorieën',unit:'kcal',val:totals.calories,target:t.calories},
+    {label:'Eiwit',unit:'g',val:totals.protein,target:t.protein},
+    {label:'Koolhydraten',unit:'g',val:totals.carbs,target:t.carbs},
+    {label:'Vet',unit:'g',val:totals.fat,target:t.fat}
+  ];
+  wrap.innerHTML='<div class="stat-grid">'+rows.map(function(r){
+    var pct=r.target?Math.round(r.val/r.target*100):0;
+    var over=r.target&&r.val>r.target;
+    return'<div class="stat-card"><div class="stat-label">'+r.label+'</div><div class="stat-value" style="font-size:18px;color:'+(over?'var(--warn)':'var(--accent)')+'">'+Math.round(r.val)+'</div><div style="font-size:10px;color:var(--muted);margin-top:2px">van '+r.target+r.unit+' ('+pct+'%)</div></div>';
+  }).join('')+'</div>';
+}
+function renderNutritionMeals(){
+  var wrap=document.getElementById('nutrition-meals');if(!wrap)return;
+  var log=todayNutritionLog();
+  var html='';
+  ['ontbijt','lunch','snack'].forEach(function(mt){
+    var items=S.nutrition.pool.filter(function(p){return p.mealType===mt;});
+    html+='<div class="act-section"><div class="act-header"><div class="act-title">'+MEAL_LABELS[mt]+'</div></div>';
+    if(!items.length){
+      html+='<div style="font-size:12px;color:var(--muted)">Nog geen opties toegevoegd (via Instellingen).</div>';
+    }else{
+      html+='<div style="display:flex;flex-wrap:wrap;gap:7px">'+items.map(function(it){
+        var selected=mt==='snack'?(log.snacks||[]).includes(it.id):log[mt]===it.id;
+        return'<div class="chip" style="cursor:pointer;padding:8px 12px;'+(selected?'background:var(--accent);color:#0e0e0f;font-weight:700':'')+'" onclick="pickMeal(\\''+mt+'\\',\\''+it.id+'\\')">'+it.name+' <span style="opacity:.7;font-size:10px">('+it.calories+'kcal)</span></div>';
+      }).join('')+'</div>';
+    }
+    html+='</div>';
+  });
+  var d=S.nutrition.dinnerDefault;
+  html+='<div class="act-section"><div class="act-header"><div class="act-title">Avondeten</div></div><div class="card" style="font-size:12px;color:var(--muted)">Vast geschat: '+d.calories+' kcal, '+d.protein+'g eiwit, '+d.carbs+'g koolhydraten, '+d.fat+'g vet — elke dag automatisch meegeteld</div></div>';
+  wrap.innerHTML=html;
+}
+function pickMeal(mealType,itemId){
+  ensureNewFields();
+  var log=todayNutritionLog();
+  if(mealType==='snack'){
+    var idx=log.snacks.indexOf(itemId);
+    if(idx>=0)log.snacks.splice(idx,1);else log.snacks.push(itemId);
+  }else{
+    log[mealType]=(log[mealType]===itemId)?null:itemId;
+  }
+  saveS();renderNutrition();
+}
+var __shoppingList=[];
+function renderShoppingList(){
+  var wrap=document.getElementById('shopping-list');if(!wrap)return;
+  ensureNewFields();
+  __shoppingList=[];
+  S.nutrition.pool.forEach(function(p){
+    (p.ingredients||'').split(',').map(function(s){return s.trim();}).filter(Boolean).forEach(function(ing){
+      if(!__shoppingList.includes(ing))__shoppingList.push(ing);
+    });
+  });
+  if(!__shoppingList.length){wrap.innerHTML='<p style="font-size:13px;color:var(--muted)">Voeg voedingsopties toe (met ingrediënten) via Instellingen om een boodschappenlijst te zien.</p>';return;}
+  wrap.innerHTML=__shoppingList.map(function(ing,i){
+    var checked=!!S.nutrition.shoppingChecked[ing];
+    return'<div class="checklist-item"><input type="checkbox" class="checklist-cb"'+(checked?' checked':'')+' onchange="toggleShoppingItem('+i+',this.checked)"><div class="checklist-act '+(checked?'done':'')+'">'+ing+'</div></div>';
+  }).join('');
+}
+function toggleShoppingItem(i,checked){
+  ensureNewFields();
+  var ing=__shoppingList[i];if(!ing)return;
+  S.nutrition.shoppingChecked[ing]=checked;
+  saveS();
+}
+function setNutritionTarget(key,val){
+  ensureNewFields();
+  S.nutrition.targets[key]=Math.max(0,parseInt(val)||0);
+  saveS();renderNutrition();
+}
+function setDinnerDefault(key,val){
+  ensureNewFields();
+  S.nutrition.dinnerDefault[key]=Math.max(0,parseInt(val)||0);
+  saveS();renderNutrition();
+}
+function openAddFood(){
+  document.getElementById('food-name').value='';
+  document.getElementById('food-mealtype').value='ontbijt';
+  document.getElementById('food-cal').value='0';
+  document.getElementById('food-protein').value='0';
+  document.getElementById('food-carbs').value='0';
+  document.getElementById('food-fat').value='0';
+  document.getElementById('food-ingredients').value='';
+  document.getElementById('food-workday').checked=false;
+  openModal('m-add-food');
+}
+function addFoodItem(){
+  var name=document.getElementById('food-name').value.trim();
+  if(!name){showToast('Vul een naam in');return;}
+  ensureNewFields();
+  S.nutrition.pool.push({
+    id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    name:name,
+    mealType:document.getElementById('food-mealtype').value,
+    calories:parseInt(document.getElementById('food-cal').value)||0,
+    protein:parseInt(document.getElementById('food-protein').value)||0,
+    carbs:parseInt(document.getElementById('food-carbs').value)||0,
+    fat:parseInt(document.getElementById('food-fat').value)||0,
+    ingredients:document.getElementById('food-ingredients').value.trim(),
+    workday:document.getElementById('food-workday').checked
+  });
+  saveS();closeModal('m-add-food');renderFoodPoolList();renderNutrition();showToast('Toegevoegd');
+}
+function removeFoodItem(id){
+  if(!confirm('Deze optie verwijderen?'))return;
+  ensureNewFields();
+  S.nutrition.pool=S.nutrition.pool.filter(function(p){return p.id!==id;});
+  saveS();renderFoodPoolList();renderNutrition();showToast('Verwijderd');
+}
+function renderFoodPoolList(){
+  var wrap=document.getElementById('food-pool-list');if(!wrap)return;
+  ensureNewFields();
+  if(!S.nutrition.pool.length){wrap.innerHTML='<p style="font-size:12px;color:var(--muted)">Nog geen opties toegevoegd.</p>';return;}
+  wrap.innerHTML=S.nutrition.pool.map(function(p){
+    return'<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--surface2)"><div style="flex:1"><div style="font-weight:600;font-size:13px">'+p.name+'</div><div style="font-size:11px;color:var(--muted)">'+MEAL_LABELS[p.mealType]+' · '+p.calories+'kcal · '+p.protein+'g eiwit'+(p.workday?' · werkdag':'')+'</div></div><button class="btn-icon" onclick="removeFoodItem(\\''+p.id+'\\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>';
+  }).join('');
 }
 
 /* ─── HISTORIE ─── */
@@ -700,6 +861,16 @@ function toggleDone(key,checked){
 function renderSettings(){
   ensureNewFields();
   renderActivityManageList();
+  var t=S.nutrition.targets,d=S.nutrition.dinnerDefault;
+  var ct=document.getElementById('set-cal-target');if(ct)ct.value=t.calories;
+  var pt=document.getElementById('set-protein-target');if(pt)pt.value=t.protein;
+  var kt=document.getElementById('set-carbs-target');if(kt)kt.value=t.carbs;
+  var ft=document.getElementById('set-fat-target');if(ft)ft.value=t.fat;
+  var dc=document.getElementById('set-dinner-cal');if(dc)dc.value=d.calories;
+  var dp=document.getElementById('set-dinner-protein');if(dp)dp.value=d.protein;
+  var dk=document.getElementById('set-dinner-carbs');if(dk)dk.value=d.carbs;
+  var df=document.getElementById('set-dinner-fat');if(df)df.value=d.fat;
+  renderFoodPoolList();
 }
 function renderActivityManageList(){
   var wrap=document.getElementById('activity-manage-list');if(!wrap)return;

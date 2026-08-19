@@ -7,6 +7,7 @@ export function buildGymAppHtml(email: string): string {
 </div>
 <nav>
   <button class="active" onclick="goScreen('workout')" id="nav-workout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="9" width="4" height="6" rx="1.2"/><rect x="17" y="9" width="4" height="6" rx="1.2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>Workout</button>
+  <button onclick="goScreen('nutrition')" id="nav-nutrition"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="14" r="6"/><line x1="12" y1="8" x2="12" y2="5"/><ellipse cx="14.5" cy="6" rx="2" ry="1" transform="rotate(-30 14.5 6)"/></svg>Voeding</button>
   <button onclick="goScreen('history')" id="nav-history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Historie</button>
   <button onclick="goScreen('progress')" id="nav-progress"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Progressie</button>
   <button onclick="goScreen('programs')" id="nav-programs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>Schema</button>
@@ -31,6 +32,15 @@ export function buildGymAppHtml(email: string): string {
   <div id="wk-warmup"></div>
   <div id="wk-exercises"></div>
   <div id="wk-empty" class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="9" width="4" height="6" rx="1.2"/><rect x="17" y="9" width="4" height="6" rx="1.2"/><line x1="7" y1="12" x2="17" y2="12"/></svg><p>Kies een schema of voeg een oefening toe</p></div>
+</div>
+
+<!-- VOEDING -->
+<div class="screen" id="screen-nutrition">
+  <div class="page-header"><h1>Voeding</h1><span class="date-badge" id="nutrition-date"></span></div>
+  <div id="nutrition-progress"></div>
+  <div id="nutrition-meals"></div>
+  <div class="sdiv"><hr><span>Boodschappenlijst</span><hr></div>
+  <div id="shopping-list"></div>
 </div>
 
 <!-- HISTORIE -->
@@ -113,7 +123,7 @@ export function buildGymAppHtml(email: string): string {
     <button class="btn btn-ghost btn-sm" onclick="changePassword()">Wachtwoord wijzigen</button>
   </div>
 
-  <div class="card">
+  <div class="card" style="margin-bottom:13px">
     <div style="font-weight:700;font-size:14px;margin-bottom:12px">Sporten</div>
     <div id="activity-manage-list"></div>
     <div style="display:flex;gap:7px;margin-top:9px">
@@ -121,6 +131,33 @@ export function buildGymAppHtml(email: string): string {
       <button class="btn btn-primary btn-sm" onclick="addActivity()" style="flex-shrink:0">+ Toevoegen</button>
     </div>
     <div style="font-size:11px;color:var(--muted);margin-top:8px">Streefdagen worden getoond als doel in de progressietab. Gym kan niet verwijderd worden.</div>
+  </div>
+
+  <div class="card" style="margin-bottom:13px">
+    <div style="font-weight:700;font-size:14px;margin-bottom:12px">Voedingsdoelen (per dag)</div>
+    <div class="fr3">
+      <div class="fg"><label>Kcal</label><input type="number" id="set-cal-target" min="0" onchange="setNutritionTarget('calories',this.value)"></div>
+      <div class="fg"><label>Eiwit (g)</label><input type="number" id="set-protein-target" min="0" onchange="setNutritionTarget('protein',this.value)"></div>
+      <div class="fg"><label>Koolh. (g)</label><input type="number" id="set-carbs-target" min="0" onchange="setNutritionTarget('carbs',this.value)"></div>
+    </div>
+    <div class="fg"><label>Vet (g)</label><input type="number" id="set-fat-target" min="0" onchange="setNutritionTarget('fat',this.value)"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:13px">
+    <div style="font-weight:700;font-size:14px;margin-bottom:6px">Avondeten (vaste schatting)</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Telt elke dag automatisch mee, hoef je niet los te loggen.</div>
+    <div class="fr3">
+      <div class="fg"><label>Kcal</label><input type="number" id="set-dinner-cal" min="0" onchange="setDinnerDefault('calories',this.value)"></div>
+      <div class="fg"><label>Eiwit (g)</label><input type="number" id="set-dinner-protein" min="0" onchange="setDinnerDefault('protein',this.value)"></div>
+      <div class="fg"><label>Koolh. (g)</label><input type="number" id="set-dinner-carbs" min="0" onchange="setDinnerDefault('carbs',this.value)"></div>
+    </div>
+    <div class="fg"><label>Vet (g)</label><input type="number" id="set-dinner-fat" min="0" onchange="setDinnerDefault('fat',this.value)"></div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:700;font-size:14px;margin-bottom:12px">Voedingsopties (ontbijt/lunch/snacks)</div>
+    <div id="food-pool-list"></div>
+    <button class="btn btn-primary btn-sm" onclick="openAddFood()" style="margin-top:9px">+ Optie toevoegen</button>
   </div>
 </div>
 
@@ -160,6 +197,22 @@ export function buildGymAppHtml(email: string): string {
     <div class="modal-title" id="pd-title"></div>
     <div id="pd-body" style="margin-bottom:15px;font-size:13px;color:var(--muted)"></div>
     <div style="display:flex;gap:8px"><button class="btn btn-danger btn-sm" onclick="delProg()">Verwijderen</button><button class="btn btn-ghost" style="flex:1" onclick="closeModal('m-prog-detail')">Sluiten</button></div>
+  </div>
+</div>
+<div class="modal-overlay hidden" id="m-add-food">
+  <div class="modal">
+    <div class="modal-title">Voedingsoptie toevoegen</div>
+    <div class="fg"><label>Naam</label><input type="text" id="food-name" placeholder="bijv. Kwark met bessen"></div>
+    <div class="fg"><label>Maaltijd</label><select id="food-mealtype"><option value="ontbijt">Ontbijt</option><option value="lunch">Lunch</option><option value="snack">Snack</option></select></div>
+    <div class="fr3">
+      <div class="fg"><label>Kcal</label><input type="number" id="food-cal" value="0" min="0"></div>
+      <div class="fg"><label>Eiwit (g)</label><input type="number" id="food-protein" value="0" min="0"></div>
+      <div class="fg"><label>Koolh. (g)</label><input type="number" id="food-carbs" value="0" min="0"></div>
+    </div>
+    <div class="fg"><label>Vet (g)</label><input type="number" id="food-fat" value="0" min="0"></div>
+    <div class="fg"><label>Ingrediënten (voor boodschappenlijst)</label><input type="text" id="food-ingredients" placeholder="bijv. kwark 250g, blauwe bessen 100g"></div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:13px;cursor:pointer"><input type="checkbox" id="food-workday" style="width:18px;height:18px"><span style="font-size:12px;color:var(--muted)">Werkdag-geschikt (makkelijk mee te nemen)</span></label>
+    <div style="display:flex;gap:8px"><button class="btn btn-primary" style="flex:1" onclick="addFoodItem()">Toevoegen</button><button class="btn btn-ghost" onclick="closeModal('m-add-food')">Annuleren</button></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
