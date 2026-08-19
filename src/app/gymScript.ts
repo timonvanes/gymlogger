@@ -506,9 +506,10 @@ function renderNutritionProgress(){
     {label:'Vet',unit:'g',val:totals.fat,target:t.fat}
   ];
   wrap.innerHTML='<div class="stat-grid">'+rows.map(function(r){
-    var pct=r.target?Math.round(r.val/r.target*100):0;
-    var over=r.target&&r.val>r.target;
-    return'<div class="stat-card"><div class="stat-label">'+r.label+'</div><div class="stat-value" style="font-size:18px;color:'+(over?'var(--warn)':'var(--accent)')+'">'+Math.round(r.val)+'</div><div style="font-size:10px;color:var(--muted);margin-top:2px">van '+r.target+r.unit+' ('+pct+'%)</div></div>';
+    var remaining=r.target-r.val;
+    var over=remaining<0;
+    var display=Math.round(Math.abs(remaining));
+    return'<div class="stat-card"><div class="stat-label">'+r.label+'</div><div class="stat-value" style="font-size:18px;color:'+(over?'var(--warn)':'var(--accent)')+'">'+display+'</div><div style="font-size:10px;color:var(--muted);margin-top:2px">'+(over?'te veel':'nog te gaan')+' ('+Math.round(r.val)+'/'+r.target+r.unit+')</div></div>';
   }).join('')+'</div>';
 }
 function renderNutritionMeals(){
@@ -711,9 +712,24 @@ function copyNutritionAiPrompt(){
     showToast('Kopieren mislukt, probeer opnieuw');
   });
 }
+function parseAiJson(text){
+  var t=(text||'').trim();
+  var fenceMatch=t.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/i);
+  if(fenceMatch)t=fenceMatch[1].trim();
+  try{
+    return JSON.parse(t);
+  }catch(e){
+    var start=t.search(/[\[{]/);
+    var end=Math.max(t.lastIndexOf(']'),t.lastIndexOf('}'));
+    if(start>=0&&end>start){
+      return JSON.parse(t.slice(start,end+1));
+    }
+    throw e;
+  }
+}
 function importFoodItemsFromText(text){
   try{
-    var data=JSON.parse(text);
+    var data=parseAiJson(text);
     var items=Array.isArray(data)?data:[data];
     ensureNewFields();
     var added=0;
@@ -895,7 +911,7 @@ function openProgDetail(id){curProgId=id;var p=S.programs.find(function(x){retur
 function delProg(){if(!confirm('Schema verwijderen?'))return;S.programs=S.programs.filter(function(p){return p.id!==curProgId;});saveS();closeModal('m-prog-detail');renderPrograms();renderWkSchemaSelect();showToast('Schema verwijderd');}
 function importProgramFromText(text){
   try{
-    var data=JSON.parse(text);
+    var data=parseAiJson(text);
     var ps=Array.isArray(data)?data:[data];
     ps.forEach(function(p){if(!p.name||!p.exercises)throw new Error('Ongeldig formaat');S.programs.push({id:Date.now().toString()+Math.random(),name:p.name,exercises:p.exercises});});
     saveS();renderPrograms();renderWkSchemaSelect();showToast(ps.length+" schema's geimporteerd");
