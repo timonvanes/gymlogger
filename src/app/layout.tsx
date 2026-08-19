@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Syne, DM_Mono } from "next/font/google";
+import { Inter, DM_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import "./gym.css";
 
-const syne = Syne({
-  variable: "--font-syne",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "600", "700", "800"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 const dmMono = DM_Mono({
@@ -46,7 +46,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="nl" className={`${syne.variable} ${dmMono.variable} h-full antialiased`}>
+    <html lang="nl" className={`${inter.variable} ${dmMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         {children}
         <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
