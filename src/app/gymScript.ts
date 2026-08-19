@@ -502,12 +502,17 @@ function setBeers(val){
   log.beers=Math.max(0,parseInt(val)||0);
   saveS();renderNutrition();
 }
+function resolveMealEntry(idOrObj){
+  if(!idOrObj)return null;
+  if(typeof idOrObj==='object')return idOrObj;
+  return S.nutrition.pool.find(function(p){return p.id===idOrObj;});
+}
 function calcNutritionTotals(date){
   ensureNewFields();
   var log=getNutritionLog(date);
   var totals={calories:0,protein:0,carbs:0,fat:0};
-  function addItem(id){
-    var item=S.nutrition.pool.find(function(p){return p.id===id;});
+  function addItem(idOrObj){
+    var item=resolveMealEntry(idOrObj);
     if(!item)return;
     totals.calories+=item.calories||0;totals.protein+=item.protein||0;totals.carbs+=item.carbs||0;totals.fat+=item.fat||0;
   }
@@ -595,17 +600,42 @@ function renderNutritionMeals(){
     var items=log.workday?allItems.filter(function(p){return p.workday;}):allItems;
     html+='<div class="act-section"><div class="act-header"><div class="act-title">'+MEAL_LABELS[mt]+'</div></div>';
     if(log.workday&&allItems.length&&!items.length){
-      html+='<div style="font-size:12px;color:var(--muted)">Geen werkdag-geschikte opties voor '+MEAL_LABELS[mt].toLowerCase()+' (via Instellingen toevoegen of markeren).</div>';
+      html+='<div style="font-size:12px;color:var(--muted);margin-bottom:7px">Geen werkdag-geschikte opties voor '+MEAL_LABELS[mt].toLowerCase()+' (via Instellingen toevoegen of markeren).</div>';
     }else if(!items.length){
-      html+='<div style="font-size:12px;color:var(--muted)">Nog geen opties toegevoegd (via Instellingen).</div>';
-    }else{
-      if(log.workday&&items.length<allItems.length){
-        html+='<div style="font-size:10px;color:var(--muted);margin-bottom:5px">'+(allItems.length-items.length)+' optie(s) verborgen (niet werkdag-geschikt)</div>';
-      }
-      html+='<div style="display:flex;flex-wrap:wrap;gap:7px">'+items.map(function(it){
-        var selected=mt==='snack'?(log.snacks||[]).includes(it.id):log[mt]===it.id;
-        return'<div class="chip" style="cursor:pointer;padding:8px 12px;'+(selected?'background:var(--accent);color:#0e0e0f;font-weight:700':'')+'" onclick="pickMeal(\\''+mt+'\\',\\''+it.id+'\\')">'+it.name+' <span style="opacity:.7;font-size:10px">('+it.calories+'kcal)</span></div>';
-      }).join('')+'</div>';
+      html+='<div style="font-size:12px;color:var(--muted);margin-bottom:7px">Nog geen opties toegevoegd (via Instellingen).</div>';
+    }else if(log.workday&&items.length<allItems.length){
+      html+='<div style="font-size:10px;color:var(--muted);margin-bottom:5px">'+(allItems.length-items.length)+' optie(s) verborgen (niet werkdag-geschikt)</div>';
+    }
+    html+='<div style="display:flex;flex-wrap:wrap;gap:7px">';
+    html+=items.map(function(it){
+      var selected=mt==='snack'?(log.snacks||[]).includes(it.id):log[mt]===it.id;
+      return'<div class="chip" style="cursor:pointer;padding:8px 12px;'+(selected?'background:var(--accent);color:#0e0e0f;font-weight:700':'')+'" onclick="pickMeal(\\''+mt+'\\',\\''+it.id+'\\')">'+it.name+' <span style="opacity:.7;font-size:10px">('+it.calories+'kcal)</span></div>';
+    }).join('');
+    if(mt!=='snack'&&log[mt]&&typeof log[mt]==='object'){
+      html+='<div class="chip" style="background:var(--accent);color:#0e0e0f;font-weight:700">✏️ '+log[mt].name+' <span style="opacity:.7;font-size:10px">('+log[mt].calories+'kcal)</span> <span style="cursor:pointer;margin-left:4px" onclick="clearCustomMeal(\\''+mt+'\\')">✕</span></div>';
+    }
+    if(mt==='snack'){
+      (log.snacks||[]).forEach(function(entry,idx){
+        if(entry&&typeof entry==='object'){
+          html+='<div class="chip" style="background:var(--accent);color:#0e0e0f;font-weight:700">✏️ '+entry.name+' <span style="opacity:.7;font-size:10px">('+entry.calories+'kcal)</span> <span style="cursor:pointer;margin-left:4px" onclick="removeCustomSnack('+idx+')">✕</span></div>';
+        }
+      });
+    }
+    html+='<div class="chip" style="cursor:pointer;border:1px dashed var(--border);color:var(--muted)" onclick="openCustomMeal(\\''+mt+'\\')">✏️ Zelf invullen</div>';
+    html+='</div>';
+    var ingredientLines=[];
+    if(mt==='snack'){
+      (log.snacks||[]).forEach(function(id){
+        if(typeof id!=='string')return;
+        var si=S.nutrition.pool.find(function(p){return p.id===id;});
+        if(si&&si.ingredients)ingredientLines.push('<strong>'+si.name+':</strong> '+si.ingredients);
+      });
+    }else if(typeof log[mt]==='string'){
+      var si2=S.nutrition.pool.find(function(p){return p.id===log[mt];});
+      if(si2&&si2.ingredients)ingredientLines.push(si2.ingredients);
+    }
+    if(ingredientLines.length){
+      html+='<div style="font-size:11px;color:var(--muted);margin-top:7px;padding:8px 10px;background:var(--surface2);border-radius:8px;line-height:1.5">🛒 '+ingredientLines.join('<br>')+'</div>';
     }
     html+='</div>';
   });
@@ -623,6 +653,39 @@ function pickMeal(mealType,itemId){
   }else{
     log[mealType]=(log[mealType]===itemId)?null:itemId;
   }
+  saveS();renderNutrition();
+}
+var __customMealTarget=null;
+function openCustomMeal(mealType){
+  __customMealTarget=mealType;
+  document.getElementById('custom-meal-name').value='';
+  document.getElementById('custom-meal-cal').value='0';
+  document.getElementById('custom-meal-protein-pct').value='20';
+  openModal('m-custom-meal');
+}
+function confirmCustomMeal(){
+  ensureNewFields();
+  var name=document.getElementById('custom-meal-name').value.trim()||'Zelf ingevuld';
+  var cal=Math.max(0,parseInt(document.getElementById('custom-meal-cal').value)||0);
+  var pct=Math.max(0,Math.min(100,parseInt(document.getElementById('custom-meal-protein-pct').value)||0));
+  var protein=Math.round((cal*pct/100)/4);
+  var entry={custom:true,name:name,calories:cal,protein:protein,carbs:0,fat:0};
+  var log=getNutritionLog();
+  if(__customMealTarget==='snack'){
+    log.snacks.push(entry);
+  }else{
+    log[__customMealTarget]=entry;
+  }
+  saveS();closeModal('m-custom-meal');renderNutrition();showToast('Toegevoegd');
+}
+function clearCustomMeal(mealType){
+  var log=getNutritionLog();
+  log[mealType]=null;
+  saveS();renderNutrition();
+}
+function removeCustomSnack(idx){
+  var log=getNutritionLog();
+  log.snacks.splice(idx,1);
   saveS();renderNutrition();
 }
 var __shoppingList=[];

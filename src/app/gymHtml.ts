@@ -257,6 +257,16 @@ export function buildGymAppHtml(email: string): string {
     <div style="display:flex;gap:8px"><button class="btn btn-primary" style="flex:1" onclick="confirmImportText()">Importeren</button><button class="btn btn-ghost" onclick="closeModal('m-import-text')">Annuleren</button></div>
   </div>
 </div>
+<div class="modal-overlay hidden" id="m-custom-meal">
+  <div class="modal">
+    <div class="modal-title">Zelf invullen</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Vervangt je gekozen optie voor deze maaltijd. Gewoon een ruwe schatting is prima.</div>
+    <div class="fg"><label>Naam (optioneel)</label><input type="text" id="custom-meal-name" placeholder="bijv. Lunch met Jan"></div>
+    <div class="fg"><label>Kcal (schatting)</label><input type="number" id="custom-meal-cal" min="0" value="0"></div>
+    <div class="fg"><label>Eiwit % (schatting)</label><input type="number" id="custom-meal-protein-pct" min="0" max="100" value="20"></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-primary" style="flex:1" onclick="confirmCustomMeal()">Gebruiken</button><button class="btn btn-ghost" onclick="closeModal('m-custom-meal')">Annuleren</button></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 `;
 }
