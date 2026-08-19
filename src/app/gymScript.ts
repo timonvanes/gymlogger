@@ -471,12 +471,16 @@ function loadSchema(){
 
 /* ─── VOEDING ─── */
 var MEAL_LABELS={ontbijt:'Ontbijt',lunch:'Lunch',snack:'Snacks'};
+function mealLogKey(mealType){return mealType==='snack'?'snacks':mealType;}
 var nutritionViewDate=null;
 function getNutritionLog(date){
   ensureNewFields();
   var ts=date||nutritionViewDate||todayStr();
-  if(!S.nutrition.log[ts])S.nutrition.log[ts]={ontbijt:null,lunch:null,snacks:[],workday:false,beers:0,carryOverDecision:null};
+  if(!S.nutrition.log[ts])S.nutrition.log[ts]={ontbijt:[],lunch:[],snacks:[],workday:false,beers:0,carryOverDecision:null};
   var entry=S.nutrition.log[ts];
+  if(!Array.isArray(entry.ontbijt))entry.ontbijt=entry.ontbijt?[entry.ontbijt]:[];
+  if(!Array.isArray(entry.lunch))entry.lunch=entry.lunch?[entry.lunch]:[];
+  if(!Array.isArray(entry.snacks))entry.snacks=[];
   if(entry.workday==null)entry.workday=false;
   if(entry.beers==null)entry.beers=0;
   if(entry.carryOverDecision===undefined)entry.carryOverDecision=null;
@@ -516,8 +520,8 @@ function calcNutritionTotals(date){
     if(!item)return;
     totals.calories+=item.calories||0;totals.protein+=item.protein||0;totals.carbs+=item.carbs||0;totals.fat+=item.fat||0;
   }
-  if(log.ontbijt)addItem(log.ontbijt);
-  if(log.lunch)addItem(log.lunch);
+  (log.ontbijt||[]).forEach(addItem);
+  (log.lunch||[]).forEach(addItem);
   (log.snacks||[]).forEach(addItem);
   var d=S.nutrition.dinnerDefault;
   totals.calories+=d.calories||0;totals.protein+=d.protein||0;totals.carbs+=d.carbs||0;totals.fat+=d.fat||0;
@@ -606,34 +610,26 @@ function renderNutritionMeals(){
     }else if(log.workday&&items.length<allItems.length){
       html+='<div style="font-size:10px;color:var(--muted);margin-bottom:5px">'+(allItems.length-items.length)+' optie(s) verborgen (niet werkdag-geschikt)</div>';
     }
+    var logKey=mealLogKey(mt);
     html+='<div style="display:flex;flex-wrap:wrap;gap:7px">';
     html+=items.map(function(it){
-      var selected=mt==='snack'?(log.snacks||[]).includes(it.id):log[mt]===it.id;
-      return'<div class="chip" style="cursor:pointer;padding:8px 12px;'+(selected?'background:var(--accent);color:#0e0e0f;font-weight:700':'')+'" onclick="pickMeal(\\''+mt+'\\',\\''+it.id+'\\')">'+it.name+' <span style="opacity:.7;font-size:10px">('+it.calories+'kcal)</span></div>';
+      var count=(log[logKey]||[]).filter(function(s){return s===it.id;}).length;
+      var countBadge=count>0?' <span style="background:#0e0e0f;color:var(--accent);border-radius:10px;padding:1px 6px;font-size:10px;margin-left:2px">×'+count+'</span>':'';
+      var minusBtn=count>0?'<span onclick="removeMealInstance(\\''+mt+'\\',\\''+it.id+'\\')" style="cursor:pointer;padding:2px 6px;font-weight:900">−</span>':'';
+      return'<div class="chip" style="cursor:pointer;padding:8px 12px;display:flex;align-items:center;'+(count>0?'background:var(--accent);color:#0e0e0f;font-weight:700':'')+'"><span onclick="pickMeal(\\''+mt+'\\',\\''+it.id+'\\')">'+it.name+' <span style="opacity:.7;font-size:10px">('+it.calories+'kcal)</span>'+countBadge+'</span>'+minusBtn+'</div>';
     }).join('');
-    if(mt!=='snack'&&log[mt]&&typeof log[mt]==='object'){
-      html+='<div class="chip" style="background:var(--accent);color:#0e0e0f;font-weight:700">✏️ '+log[mt].name+' <span style="opacity:.7;font-size:10px">('+log[mt].calories+'kcal)</span> <span style="cursor:pointer;margin-left:4px" onclick="clearCustomMeal(\\''+mt+'\\')">✕</span></div>';
-    }
-    if(mt==='snack'){
-      (log.snacks||[]).forEach(function(entry,idx){
-        if(entry&&typeof entry==='object'){
-          html+='<div class="chip" style="background:var(--accent);color:#0e0e0f;font-weight:700">✏️ '+entry.name+' <span style="opacity:.7;font-size:10px">('+entry.calories+'kcal)</span> <span style="cursor:pointer;margin-left:4px" onclick="removeCustomSnack('+idx+')">✕</span></div>';
-        }
-      });
-    }
+    (log[logKey]||[]).forEach(function(entry,idx){
+      if(entry&&typeof entry==='object'){
+        html+='<div class="chip" style="background:var(--accent);color:#0e0e0f;font-weight:700">✏️ '+entry.name+' <span style="opacity:.7;font-size:10px">('+entry.calories+'kcal)</span> <span style="cursor:pointer;margin-left:4px" onclick="removeCustomEntry(\\''+mt+'\\','+idx+')">✕</span></div>';
+      }
+    });
     html+='<div class="chip" style="cursor:pointer;border:1px dashed var(--border);color:var(--muted)" onclick="openCustomMeal(\\''+mt+'\\')">✏️ Zelf invullen</div>';
     html+='</div>';
-    var ingredientLines=[];
-    if(mt==='snack'){
-      (log.snacks||[]).forEach(function(id){
-        if(typeof id!=='string')return;
-        var si=S.nutrition.pool.find(function(p){return p.id===id;});
-        if(si&&si.ingredients)ingredientLines.push('<strong>'+si.name+':</strong> '+si.ingredients);
-      });
-    }else if(typeof log[mt]==='string'){
-      var si2=S.nutrition.pool.find(function(p){return p.id===log[mt];});
-      if(si2&&si2.ingredients)ingredientLines.push(si2.ingredients);
-    }
+    var uniqueIds=Array.from(new Set((log[logKey]||[]).filter(function(id){return typeof id==='string';})));
+    var ingredientLines=uniqueIds.map(function(id){
+      var si=S.nutrition.pool.find(function(p){return p.id===id;});
+      return(si&&si.ingredients)?'<strong>'+si.name+':</strong> '+si.ingredients:null;
+    }).filter(Boolean);
     if(ingredientLines.length){
       html+='<div style="font-size:11px;color:var(--muted);margin-top:7px;padding:8px 10px;background:var(--surface2);border-radius:8px;line-height:1.5">🛒 '+ingredientLines.join('<br>')+'</div>';
     }
@@ -647,12 +643,15 @@ function renderNutritionMeals(){
 function pickMeal(mealType,itemId){
   ensureNewFields();
   var log=getNutritionLog();
-  if(mealType==='snack'){
-    var idx=log.snacks.indexOf(itemId);
-    if(idx>=0)log.snacks.splice(idx,1);else log.snacks.push(itemId);
-  }else{
-    log[mealType]=(log[mealType]===itemId)?null:itemId;
-  }
+  log[mealLogKey(mealType)].push(itemId);
+  saveS();renderNutrition();
+}
+function removeMealInstance(mealType,itemId){
+  ensureNewFields();
+  var log=getNutritionLog();
+  var arr=log[mealLogKey(mealType)];
+  var idx=arr.lastIndexOf(itemId);
+  if(idx>=0)arr.splice(idx,1);
   saveS();renderNutrition();
 }
 var __customMealTarget=null;
@@ -671,21 +670,12 @@ function confirmCustomMeal(){
   var protein=Math.round((cal*pct/100)/4);
   var entry={custom:true,name:name,calories:cal,protein:protein,carbs:0,fat:0};
   var log=getNutritionLog();
-  if(__customMealTarget==='snack'){
-    log.snacks.push(entry);
-  }else{
-    log[__customMealTarget]=entry;
-  }
+  log[mealLogKey(__customMealTarget)].push(entry);
   saveS();closeModal('m-custom-meal');renderNutrition();showToast('Toegevoegd');
 }
-function clearCustomMeal(mealType){
+function removeCustomEntry(mealType,idx){
   var log=getNutritionLog();
-  log[mealType]=null;
-  saveS();renderNutrition();
-}
-function removeCustomSnack(idx){
-  var log=getNutritionLog();
-  log.snacks.splice(idx,1);
+  log[mealLogKey(mealType)].splice(idx,1);
   saveS();renderNutrition();
 }
 var __shoppingList=[];
@@ -719,8 +709,8 @@ function renderShoppingList(){
     var log=S.nutrition.log[ds];
     if(!log)return;
     var ids=[];
-    if(log.ontbijt)ids.push(log.ontbijt);
-    if(log.lunch)ids.push(log.lunch);
+    (log.ontbijt||[]).forEach(function(id){ids.push(id);});
+    (log.lunch||[]).forEach(function(id){ids.push(id);});
     (log.snacks||[]).forEach(function(id){ids.push(id);});
     ids.forEach(function(id){
       var item=resolveMealEntry(id);
