@@ -1022,21 +1022,48 @@ function renderHistory(){
   var list=document.getElementById('hist-list');var empty=document.getElementById('hist-empty');
   if(!S.history.length){list.innerHTML='';empty.style.display='';return;}empty.style.display='none';
   var sorted=S.history.slice().sort(function(a,b){return b.date.localeCompare(a.date);});
-  list.innerHTML=sorted.map(function(day){
-    var blocks=day.exercises.map(function(block){return block.exercises.map(function(ex){
-      var chips=(ex.setData||[]).filter(function(s){return s&&s.weight;}).map(function(s){return'<span class="chip">'+s.weight+'kg x '+(s.reps||'?')+'</span>';}).join('');
-      var tl=block.type==='superset'?'<span class="badge badge-superset" style="font-size:9px">superset</span>':ex.type==='warmup'?'<span class="badge badge-warmup" style="font-size:9px">warmup</span>':'';
-      var nl=ex.note?'<div style="font-size:11px;color:var(--muted);margin-top:3px;font-style:italic">"'+ex.note+'"</div>':'';
-      return'<div class="hd-ex"><div class="hd-ex-name">'+ex.name+tl+'</div><div class="hd-chips">'+(chips||'<span style="font-size:11px;color:var(--muted)">'+ex.sets+'x'+ex.reps+'</span>')+'</div>'+nl+'</div>';
-    }).join('');}).join('');
+  list.innerHTML=sorted.map(function(day,idx){
+    var exCount=day.exercises.reduce(function(sum,b){return sum+b.exercises.length;},0);
+    var allNames=day.exercises.flatMap(function(b){return b.exercises.map(function(e){return e.name;});});
+    var label=day.schemaName?day.schemaName:allNames.slice(0,3).join(', ')+(allNames.length>3?'...':'');
+    var blocksHtml=day.exercises.map(function(block){
+      var exHtml=block.exercises.map(function(ex){
+        var chips=(ex.setData||[]).filter(function(s){return s&&s.weight;}).map(function(s){return'<span class="chip">'+s.weight+'kg x '+(s.reps||'?')+'</span>';}).join('');
+        var tl=ex.type==='warmup'?'<span class="badge badge-warmup" style="font-size:9px">warmup</span>':'';
+        var nl=ex.note?'<div style="font-size:11px;color:var(--muted);margin-top:3px;font-style:italic">"'+ex.note+'"</div>':'';
+        return'<div class="hd-ex"><div class="hd-ex-name">'+ex.name+tl+'</div><div class="hd-chips">'+(chips||'<span style="font-size:11px;color:var(--muted)">'+ex.sets+'x'+ex.reps+'</span>')+'</div>'+nl+'</div>';
+      }).join('');
+      if(block.type==='superset'){
+        return'<div class="superset-block"><div class="superset-header" style="padding:5px 10px;font-size:10px">Superset</div>'+exHtml+'</div>';
+      }
+      return exHtml;
+    }).join('');
     var nl=day.note?'<div style="margin-top:6px;padding:7px 10px;background:var(--surface2);border-radius:7px;font-size:12px;color:var(--muted)">'+day.note+'</div>':'';
-    return'<div class="history-day"><div class="hd-header"><span>'+fmtDate(day.date)+'</span><span style="display:flex;align-items:center;gap:8px"><span>'+day.exercises.length+' blokken</span><button style="background:none;border:none;cursor:pointer;color:var(--danger);padding:4px" onclick="deleteHistoryDay(\\''+day.date+'\\')" title="Training verwijderen"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg></button></span></div>'+blocks+nl+'</div>';
+    return'<div class="history-day">'
+      +'<div class="hd-header" style="cursor:pointer" onclick="toggleHistoryDetail('+idx+')">'
+        +'<span>'+fmtDate(day.date)+(label?' — '+label:'')+'</span>'
+        +'<span style="display:flex;align-items:center;gap:8px;flex-shrink:0">'
+          +'<span>'+exCount+' oef.</span>'
+          +'<button style="background:none;border:none;cursor:pointer;color:var(--danger);padding:4px" onclick="event.stopPropagation();deleteHistoryDay(\\''+day.date+'\\')" title="Training verwijderen"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg></button>'
+          +'<svg id="hist-chevron-'+idx+'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition:transform .15s;flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>'
+        +'</span>'
+      +'</div>'
+      +'<div id="hist-detail-'+idx+'" style="display:none;padding-top:7px">'+blocksHtml+nl+'</div>'
+    +'</div>';
   }).join('');
 }
 function deleteHistoryDay(date){
   if(!confirm('Deze training verwijderen uit je historie?'))return;
   S.history=S.history.filter(function(h){return h.date!==date;});
   saveS();renderHistory();showToast('Training verwijderd');
+}
+function toggleHistoryDetail(idx){
+  var el=document.getElementById('hist-detail-'+idx);
+  var chevron=document.getElementById('hist-chevron-'+idx);
+  if(!el)return;
+  var isOpen=el.style.display!=='none';
+  el.style.display=isOpen?'none':'block';
+  if(chevron)chevron.style.transform=isOpen?'':'rotate(180deg)';
 }
 
 /* ─── PROGRESSIE ─── */
