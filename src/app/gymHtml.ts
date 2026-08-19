@@ -36,7 +36,16 @@ export function buildGymAppHtml(email: string): string {
 
 <!-- VOEDING -->
 <div class="screen" id="screen-nutrition">
-  <div class="page-header"><h1>Voeding</h1><span class="date-badge" id="nutrition-date"></span></div>
+  <div class="page-header"><h1>Voeding</h1></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px">
+    <button class="btn-icon" onclick="changeNutritionDay(-1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <span class="date-badge" id="nutrition-date"></span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="btn btn-ghost btn-sm" id="nutrition-today-btn" style="padding:5px 10px;font-size:11px" onclick="goToNutritionToday()">Vandaag</button>
+      <button class="btn-icon" id="nutrition-next-btn" onclick="changeNutritionDay(1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+    </div>
+  </div>
+  <div id="nutrition-carryover"></div>
   <div id="nutrition-progress"></div>
   <label class="card" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin-bottom:13px">
     <span style="font-size:13px;font-weight:600">Vandaag is een werkdag</span>
@@ -160,6 +169,12 @@ export function buildGymAppHtml(email: string): string {
       <div class="fg"><label>Vet % (rest)</label><input type="number" id="set-dinner-fat-pct" disabled style="opacity:.6"></div>
     </div>
     <div id="dinner-grams-preview" style="font-size:11px;color:var(--muted)"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:13px">
+    <div style="font-weight:700;font-size:14px;margin-bottom:8px">🍺 Bier</div>
+    <div class="fg"><label>Kcal per biertje</label><input type="number" id="set-beer-cal" min="0" onchange="setBeerCalories(this.value)"></div>
+    <div style="font-size:11px;color:var(--muted)">Zet je aantal biertjes per dag in op de Voeding-tab.</div>
   </div>
 
   <div class="card" style="margin-bottom:13px">

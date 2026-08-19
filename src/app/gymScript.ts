@@ -199,6 +199,7 @@ function ensureNewFields(){
     S.nutrition.dinnerMacroPct={protein:20,carbs:35,fat:45};
     recalcDinnerMacrosFromPct();
   }
+  if(S.nutrition.beerCalories==null)S.nutrition.beerCalories=150;
   if(!S.nutrition.pool)S.nutrition.pool=[];
   if(!S.nutrition.log)S.nutrition.log={};
   if(!S.nutrition.shoppingChecked)S.nutrition.shoppingChecked={};
@@ -422,12 +423,21 @@ function saveExNote(){
   }
   saveS();closeModal('m-ex-note');renderWorkout();
 }
+function markTodayActivityDone(actKey){
+  ensureNewFields();
+  var todayIdx=jsDayToIndex(new Date().getDay());
+  if(!S.activitySchedule[actKey])S.activitySchedule[actKey]=[];
+  if(!S.activitySchedule[actKey].includes(todayIdx))S.activitySchedule[actKey].push(todayIdx);
+  var key=todayStr()+'_'+actKey;
+  if(!(S.activityDone||[]).includes(key))S.activityDone.push(key);
+}
 function saveWorkout(){
   if(!S.today.exercises.length){showToast('Geen oefeningen');return;}
   var ts=todayStr();
   var entry={date:ts,exercises:JSON.parse(JSON.stringify(S.today.exercises)),note:S.today.note,schemaName:S.today.schemaName||''};
   var idx=S.history.findIndex(function(h){return h.date===ts;});if(idx>=0)S.history[idx]=entry;else S.history.push(entry);
   S.today={exercises:[],note:''};
+  markTodayActivityDone('gym');
   if(timerIv){clearInterval(timerIv);timerIv=null;timerStart=null;document.getElementById('timer-bar').classList.remove('vis');}
   saveS();showToast('Workout opgeslagen!');
   renderWorkout();
@@ -460,21 +470,42 @@ function loadSchema(){
 
 /* ─── VOEDING ─── */
 var MEAL_LABELS={ontbijt:'Ontbijt',lunch:'Lunch',snack:'Snacks'};
-function todayNutritionLog(){
+var nutritionViewDate=null;
+function getNutritionLog(date){
   ensureNewFields();
-  var ts=todayStr();
-  if(!S.nutrition.log[ts])S.nutrition.log[ts]={ontbijt:null,lunch:null,snacks:[],workday:false};
-  if(S.nutrition.log[ts].workday==null)S.nutrition.log[ts].workday=false;
-  return S.nutrition.log[ts];
+  var ts=date||nutritionViewDate||todayStr();
+  if(!S.nutrition.log[ts])S.nutrition.log[ts]={ontbijt:null,lunch:null,snacks:[],workday:false,beers:0,carryOverDecision:null};
+  var entry=S.nutrition.log[ts];
+  if(entry.workday==null)entry.workday=false;
+  if(entry.beers==null)entry.beers=0;
+  if(entry.carryOverDecision===undefined)entry.carryOverDecision=null;
+  return entry;
 }
+function getPrevDateStr(date){
+  var d=new Date(date+'T12:00:00');d.setDate(d.getDate()-1);return localDateStr(d);
+}
+function changeNutritionDay(delta){
+  var d=new Date((nutritionViewDate||todayStr())+'T12:00:00');
+  d.setDate(d.getDate()+delta);
+  var newDate=localDateStr(d);
+  if(newDate>todayStr())return;
+  nutritionViewDate=newDate;
+  renderNutrition();
+}
+function goToNutritionToday(){nutritionViewDate=todayStr();renderNutrition();}
 function toggleTodayWorkday(checked){
-  var log=todayNutritionLog();
+  var log=getNutritionLog();
   log.workday=checked;
   saveS();renderNutritionMeals();
 }
-function calcNutritionTotals(){
+function setBeers(val){
+  var log=getNutritionLog();
+  log.beers=Math.max(0,parseInt(val)||0);
+  saveS();renderNutrition();
+}
+function calcNutritionTotals(date){
   ensureNewFields();
-  var log=todayNutritionLog();
+  var log=getNutritionLog(date);
   var totals={calories:0,protein:0,carbs:0,fat:0};
   function addItem(id){
     var item=S.nutrition.pool.find(function(p){return p.id===id;});
@@ -486,21 +517,65 @@ function calcNutritionTotals(){
   (log.snacks||[]).forEach(addItem);
   var d=S.nutrition.dinnerDefault;
   totals.calories+=d.calories||0;totals.protein+=d.protein||0;totals.carbs+=d.carbs||0;totals.fat+=d.fat||0;
+  totals.calories+=(log.beers||0)*(S.nutrition.beerCalories||0);
   return totals;
+}
+function getDayCalorieDiff(date){
+  var totals=calcNutritionTotals(date);
+  return (S.nutrition.targets.calories||0)-totals.calories;
+}
+function getEffectiveCalorieTarget(date){
+  ensureNewFields();
+  var log=getNutritionLog(date);
+  var base=S.nutrition.targets.calories||0;
+  if(log.carryOverDecision===true){
+    var prevDate=getPrevDateStr(date||nutritionViewDate||todayStr());
+    if(S.nutrition.log[prevDate])base+=getDayCalorieDiff(prevDate);
+  }
+  return base;
+}
+function setCarryOverDecision(val){
+  var log=getNutritionLog();
+  log.carryOverDecision=val;
+  saveS();renderNutrition();
+}
+function renderNutritionCarryOver(){
+  var wrap=document.getElementById('nutrition-carryover');if(!wrap)return;
+  var viewDate=nutritionViewDate||todayStr();
+  var prevDate=getPrevDateStr(viewDate);
+  if(!S.nutrition.log[prevDate]){wrap.innerHTML='';return;}
+  var diff=getDayCalorieDiff(prevDate);
+  if(Math.abs(diff)<5){wrap.innerHTML='';return;}
+  var log=getNutritionLog(viewDate);
+  var isOver=diff<0;
+  var absAmt=Math.round(Math.abs(diff));
+  var desc=absAmt+' kcal '+(isOver?'boven':'onder')+' doel op '+fmtShort(prevDate);
+  if(log.carryOverDecision===null){
+    wrap.innerHTML='<div class="card" style="border-color:var(--warn);margin-bottom:13px"><div style="font-size:12px;margin-bottom:8px">'+desc+'. Verrekenen met vandaag ('+(isOver?'doel wordt lager':'doel wordt hoger')+')?</div><div style="display:flex;gap:7px"><button class="btn btn-primary btn-sm" onclick="setCarryOverDecision(true)">Ja, verrekenen</button><button class="btn btn-ghost btn-sm" onclick="setCarryOverDecision(false)">Nee</button></div></div>';
+  }else{
+    var applied=log.carryOverDecision;
+    wrap.innerHTML='<div class="card" style="margin-bottom:13px;display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="font-size:12px;color:var(--muted)">'+(applied?'Verrekend: ':'Niet verrekend: ')+desc+'</div><button class="btn btn-ghost btn-sm" onclick="setCarryOverDecision(null)">Wijzig</button></div>';
+  }
 }
 function renderNutrition(){
   ensureNewFields();
-  var dd=document.getElementById('nutrition-date');if(dd)dd.textContent=fmtDate(todayStr());
+  if(!nutritionViewDate)nutritionViewDate=todayStr();
+  var dd=document.getElementById('nutrition-date');if(dd)dd.textContent=fmtDate(nutritionViewDate);
+  var isToday=nutritionViewDate===todayStr();
+  var nextBtn=document.getElementById('nutrition-next-btn');if(nextBtn){nextBtn.disabled=isToday;nextBtn.style.opacity=isToday?'.4':'1';}
+  var todayBtn=document.getElementById('nutrition-today-btn');if(todayBtn){todayBtn.disabled=isToday;todayBtn.style.opacity=isToday?'.4':'1';}
+  renderNutritionCarryOver();
   renderNutritionProgress();
   renderNutritionMeals();
   renderShoppingList();
 }
 function renderNutritionProgress(){
   var wrap=document.getElementById('nutrition-progress');if(!wrap)return;
-  var totals=calcNutritionTotals();
+  var totals=calcNutritionTotals(nutritionViewDate);
   var t=S.nutrition.targets;
+  var effCalTarget=getEffectiveCalorieTarget(nutritionViewDate);
   var rows=[
-    {label:'Calorieën',unit:'kcal',val:totals.calories,target:t.calories},
+    {label:'Calorieën',unit:'kcal',val:totals.calories,target:effCalTarget},
     {label:'Eiwit',unit:'g',val:totals.protein,target:t.protein},
     {label:'Koolhydraten',unit:'g',val:totals.carbs,target:t.carbs},
     {label:'Vet',unit:'g',val:totals.fat,target:t.fat}
@@ -514,7 +589,7 @@ function renderNutritionProgress(){
 }
 function renderNutritionMeals(){
   var wrap=document.getElementById('nutrition-meals');if(!wrap)return;
-  var log=todayNutritionLog();
+  var log=getNutritionLog();
   var wdToggle=document.getElementById('workday-toggle');if(wdToggle)wdToggle.checked=!!log.workday;
   var html='';
   ['ontbijt','lunch','snack'].forEach(function(mt){
@@ -538,11 +613,12 @@ function renderNutritionMeals(){
   });
   var d=S.nutrition.dinnerDefault;
   html+='<div class="act-section"><div class="act-header"><div class="act-title">Avondeten</div></div><div class="card" style="font-size:12px;color:var(--muted)">Vast geschat: '+d.calories+' kcal, '+d.protein+'g eiwit, '+d.carbs+'g koolhydraten, '+d.fat+'g vet — elke dag automatisch meegeteld</div></div>';
+  html+='<div class="act-section"><div class="act-header"><div class="act-title">🍺 Biertjes</div></div><div class="card" style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:var(--muted)">'+(S.nutrition.beerCalories||0)+' kcal per stuk</span><input type="number" min="0" style="width:64px" value="'+(log.beers||0)+'" onchange="setBeers(this.value)"></div></div>';
   wrap.innerHTML=html;
 }
 function pickMeal(mealType,itemId){
   ensureNewFields();
-  var log=todayNutritionLog();
+  var log=getNutritionLog();
   if(mealType==='snack'){
     var idx=log.snacks.indexOf(itemId);
     if(idx>=0)log.snacks.splice(idx,1);else log.snacks.push(itemId);
@@ -632,6 +708,11 @@ function setDinnerMacroPct(key,val){
   else if(key==='carbs')p.carbs=Math.min(v,100-p.protein);
   p.fat=100-p.protein-p.carbs;
   recalcDinnerMacrosFromPct();
+  saveS();renderSettings();renderNutrition();
+}
+function setBeerCalories(val){
+  ensureNewFields();
+  S.nutrition.beerCalories=Math.max(0,parseInt(val)||0);
   saveS();renderSettings();renderNutrition();
 }
 function openAddFood(){
@@ -1051,6 +1132,7 @@ function renderSettings(){
   var dfpct=document.getElementById('set-dinner-fat-pct');if(dfpct)dfpct.value=dmp.fat;
   var dinnerGramsPreview=document.getElementById('dinner-grams-preview');
   if(dinnerGramsPreview)dinnerGramsPreview.textContent='= '+d.protein+'g eiwit, '+d.carbs+'g koolhydraten, '+d.fat+'g vet';
+  var beerCal=document.getElementById('set-beer-cal');if(beerCal)beerCal.value=S.nutrition.beerCalories;
   renderFoodPoolList();
 }
 function renderActivityManageList(){
