@@ -455,8 +455,14 @@ var MEAL_LABELS={ontbijt:'Ontbijt',lunch:'Lunch',snack:'Snacks'};
 function todayNutritionLog(){
   ensureNewFields();
   var ts=todayStr();
-  if(!S.nutrition.log[ts])S.nutrition.log[ts]={ontbijt:null,lunch:null,snacks:[]};
+  if(!S.nutrition.log[ts])S.nutrition.log[ts]={ontbijt:null,lunch:null,snacks:[],workday:false};
+  if(S.nutrition.log[ts].workday==null)S.nutrition.log[ts].workday=false;
   return S.nutrition.log[ts];
+}
+function toggleTodayWorkday(checked){
+  var log=todayNutritionLog();
+  log.workday=checked;
+  saveS();renderNutritionMeals();
 }
 function calcNutritionTotals(){
   ensureNewFields();
@@ -500,13 +506,20 @@ function renderNutritionProgress(){
 function renderNutritionMeals(){
   var wrap=document.getElementById('nutrition-meals');if(!wrap)return;
   var log=todayNutritionLog();
+  var wdToggle=document.getElementById('workday-toggle');if(wdToggle)wdToggle.checked=!!log.workday;
   var html='';
   ['ontbijt','lunch','snack'].forEach(function(mt){
-    var items=S.nutrition.pool.filter(function(p){return p.mealType===mt;});
+    var allItems=S.nutrition.pool.filter(function(p){return p.mealType===mt;});
+    var items=log.workday?allItems.filter(function(p){return p.workday;}):allItems;
     html+='<div class="act-section"><div class="act-header"><div class="act-title">'+MEAL_LABELS[mt]+'</div></div>';
-    if(!items.length){
+    if(log.workday&&allItems.length&&!items.length){
+      html+='<div style="font-size:12px;color:var(--muted)">Geen werkdag-geschikte opties voor '+MEAL_LABELS[mt].toLowerCase()+' (via Instellingen toevoegen of markeren).</div>';
+    }else if(!items.length){
       html+='<div style="font-size:12px;color:var(--muted)">Nog geen opties toegevoegd (via Instellingen).</div>';
     }else{
+      if(log.workday&&items.length<allItems.length){
+        html+='<div style="font-size:10px;color:var(--muted);margin-bottom:5px">'+(allItems.length-items.length)+' optie(s) verborgen (niet werkdag-geschikt)</div>';
+      }
       html+='<div style="display:flex;flex-wrap:wrap;gap:7px">'+items.map(function(it){
         var selected=mt==='snack'?(log.snacks||[]).includes(it.id):log[mt]===it.id;
         return'<div class="chip" style="cursor:pointer;padding:8px 12px;'+(selected?'background:var(--accent);color:#0e0e0f;font-weight:700':'')+'" onclick="pickMeal(\\''+mt+'\\',\\''+it.id+'\\')">'+it.name+' <span style="opacity:.7;font-size:10px">('+it.calories+'kcal)</span></div>';
@@ -534,21 +547,36 @@ function renderShoppingList(){
   var wrap=document.getElementById('shopping-list');if(!wrap)return;
   ensureNewFields();
   __shoppingList=[];
+  var seen={};
   S.nutrition.pool.forEach(function(p){
+    var store=(p.store||'').trim()||'Overig';
     (p.ingredients||'').split(',').map(function(s){return s.trim();}).filter(Boolean).forEach(function(ing){
-      if(!__shoppingList.includes(ing))__shoppingList.push(ing);
+      var key=store+'::'+ing;
+      if(seen[key])return;
+      seen[key]=true;
+      __shoppingList.push({text:ing,store:store});
     });
   });
   if(!__shoppingList.length){wrap.innerHTML='<p style="font-size:13px;color:var(--muted)">Voeg voedingsopties toe (met ingrediënten) via Instellingen om een boodschappenlijst te zien.</p>';return;}
-  wrap.innerHTML=__shoppingList.map(function(ing,i){
-    var checked=!!S.nutrition.shoppingChecked[ing];
-    return'<div class="checklist-item"><input type="checkbox" class="checklist-cb"'+(checked?' checked':'')+' onchange="toggleShoppingItem('+i+',this.checked)"><div class="checklist-act '+(checked?'done':'')+'">'+ing+'</div></div>';
+  var byStore={};
+  __shoppingList.forEach(function(item,i){
+    if(!byStore[item.store])byStore[item.store]=[];
+    byStore[item.store].push(i);
+  });
+  var stores=Object.keys(byStore).sort();
+  wrap.innerHTML=stores.map(function(store){
+    var rows=byStore[store].map(function(i){
+      var item=__shoppingList[i];
+      var checked=!!S.nutrition.shoppingChecked[store+'::'+item.text];
+      return'<div class="checklist-item"><input type="checkbox" class="checklist-cb"'+(checked?' checked':'')+' onchange="toggleShoppingItem('+i+',this.checked)"><div class="checklist-act '+(checked?'done':'')+'">'+item.text+'</div></div>';
+    }).join('');
+    return'<div style="margin-bottom:13px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">'+store+'</div>'+rows+'</div>';
   }).join('');
 }
 function toggleShoppingItem(i,checked){
   ensureNewFields();
-  var ing=__shoppingList[i];if(!ing)return;
-  S.nutrition.shoppingChecked[ing]=checked;
+  var item=__shoppingList[i];if(!item)return;
+  S.nutrition.shoppingChecked[item.store+'::'+item.text]=checked;
   saveS();
 }
 function setNutritionTarget(key,val){
@@ -569,6 +597,7 @@ function openAddFood(){
   document.getElementById('food-carbs').value='0';
   document.getElementById('food-fat').value='0';
   document.getElementById('food-ingredients').value='';
+  document.getElementById('food-store').value='';
   document.getElementById('food-workday').checked=false;
   openModal('m-add-food');
 }
@@ -585,6 +614,7 @@ function addFoodItem(){
     carbs:parseInt(document.getElementById('food-carbs').value)||0,
     fat:parseInt(document.getElementById('food-fat').value)||0,
     ingredients:document.getElementById('food-ingredients').value.trim(),
+    store:document.getElementById('food-store').value.trim(),
     workday:document.getElementById('food-workday').checked
   });
   saveS();closeModal('m-add-food');renderFoodPoolList();renderNutrition();showToast('Toegevoegd');
@@ -600,8 +630,72 @@ function renderFoodPoolList(){
   ensureNewFields();
   if(!S.nutrition.pool.length){wrap.innerHTML='<p style="font-size:12px;color:var(--muted)">Nog geen opties toegevoegd.</p>';return;}
   wrap.innerHTML=S.nutrition.pool.map(function(p){
-    return'<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--surface2)"><div style="flex:1"><div style="font-weight:600;font-size:13px">'+p.name+'</div><div style="font-size:11px;color:var(--muted)">'+MEAL_LABELS[p.mealType]+' · '+p.calories+'kcal · '+p.protein+'g eiwit'+(p.workday?' · werkdag':'')+'</div></div><button class="btn-icon" onclick="removeFoodItem(\\''+p.id+'\\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>';
+    return'<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--surface2)"><div style="flex:1"><div style="font-weight:600;font-size:13px">'+p.name+'</div><div style="font-size:11px;color:var(--muted)">'+MEAL_LABELS[p.mealType]+' · '+p.calories+'kcal · '+p.protein+'g eiwit'+(p.store?' · '+p.store:'')+(p.workday?' · werkdag':'')+'</div></div><button class="btn-icon" onclick="removeFoodItem(\\''+p.id+'\\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>';
   }).join('');
+}
+function buildNutritionAiPrompt(){
+  ensureNewFields();
+  var t=S.nutrition.targets,d=S.nutrition.dinnerDefault;
+  var remCal=Math.max(0,t.calories-d.calories);
+  var remProtein=Math.max(0,t.protein-d.protein);
+  var remCarbs=Math.max(0,t.carbs-d.carbs);
+  var remFat=Math.max(0,t.fat-d.fat);
+  return 'Ik wil voedingsopties voor ontbijt, lunch en snacks in dit exacte JSON-formaat. Geef ALLEEN de JSON terug, zonder uitleg en zonder markdown code-block eromheen:\\n\\n'
+    +'[\\n'
+    +'  { "name": "Naam van het gerecht", "mealType": "ontbijt", "calories": 380, "protein": 32, "carbs": 40, "fat": 8, "ingredients": "kwark 250g, bessen 100g", "workday": true, "store": "AH" }\\n'
+    +']\\n\\n'
+    +'Regels:\\n'
+    +'- "mealType" is altijd een van: "ontbijt", "lunch", "snack"\\n'
+    +'- "calories", "protein", "carbs", "fat" zijn getallen (kcal/gram), geen tekst\\n'
+    +'- "workday" is true als het makkelijk mee te nemen/onderweg te eten is, anders false\\n'
+    +'- "store" is de supermarkt waar de ingredienten vandaan komen (bijv. "AH", "Jumbo", "Lidl") of "Overig"\\n'
+    +'- "ingredients" is een komma-gescheiden lijst met hoeveelheden\\n\\n'
+    +'Mijn situatie:\\n'
+    +'- Avondeten (vast, telt al mee, hoef je niet in te vullen): '+d.calories+' kcal, '+d.protein+'g eiwit, '+d.carbs+'g koolhydraten, '+d.fat+'g vet\\n'
+    +'- Wat ontbijt + lunch + snacks SAMEN per dag ongeveer moeten opleveren (dagdoel min avondeten): '+remCal+' kcal, '+remProtein+'g eiwit, '+remCarbs+'g koolhydraten, '+remFat+'g vet\\n\\n'
+    +'Maak 5 ontbijtopties, 5 lunchopties en 4 snackopties zodat een combinatie van bijvoorbeeld 1 ontbijt + 1 lunch + 1 snack samen ongeveer op de resterende behoefte hierboven uitkomt. Let op:\\n'
+    +'- Veel eiwit, gevarieerd qua voedingsstoffen/vitamines (niet steeds hetzelfde)\\n'
+    +'- Budgetvriendelijk, gangbare boodschappen bij een Nederlandse supermarkt\\n'
+    +'- Makkelijk en snel te bereiden, weinig kooktijd\\n'
+    +'- Minstens de helft van de ontbijt- en lunchopties moet "workday": true zijn (makkelijk mee te nemen/onderweg te eten)';
+}
+function copyNutritionAiPrompt(){
+  var prompt=buildNutritionAiPrompt();
+  navigator.clipboard.writeText(prompt).then(function(){
+    showToast('Prompt gekopieerd! Plak in ChatGPT/Claude');
+  }).catch(function(){
+    showToast('Kopieren mislukt, probeer opnieuw');
+  });
+}
+function importFoodItems(event){
+  var file=event.target.files[0];if(!file)return;
+  var r=new FileReader();
+  r.onload=function(e){
+    try{
+      var data=JSON.parse(e.target.result);
+      var items=Array.isArray(data)?data:[data];
+      ensureNewFields();
+      var added=0;
+      items.forEach(function(it){
+        if(!it.name||!it.mealType)return;
+        S.nutrition.pool.push({
+          id:Date.now().toString(36)+Math.random().toString(36).slice(2,6)+added,
+          name:it.name,
+          mealType:it.mealType,
+          calories:parseInt(it.calories)||0,
+          protein:parseInt(it.protein)||0,
+          carbs:parseInt(it.carbs)||0,
+          fat:parseInt(it.fat)||0,
+          ingredients:it.ingredients||'',
+          workday:!!it.workday,
+          store:it.store||''
+        });
+        added++;
+      });
+      saveS();renderFoodPoolList();renderNutrition();showToast(added+' voedingsopties geimporteerd');
+    }catch(err){showToast('Fout: '+err.message);}
+  };
+  r.readAsText(file);event.target.value='';
 }
 
 /* ─── HISTORIE ─── */

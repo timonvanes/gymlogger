@@ -38,6 +38,10 @@ export function buildGymAppHtml(email: string): string {
 <div class="screen" id="screen-nutrition">
   <div class="page-header"><h1>Voeding</h1><span class="date-badge" id="nutrition-date"></span></div>
   <div id="nutrition-progress"></div>
+  <label class="card" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin-bottom:13px">
+    <span style="font-size:13px;font-weight:600">Vandaag is een werkdag</span>
+    <input type="checkbox" id="workday-toggle" class="checklist-cb" onchange="toggleTodayWorkday(this.checked)">
+  </label>
   <div id="nutrition-meals"></div>
   <div class="sdiv"><hr><span>Boodschappenlijst</span><hr></div>
   <div id="shopping-list"></div>
@@ -154,6 +158,15 @@ export function buildGymAppHtml(email: string): string {
     <div class="fg"><label>Vet (g)</label><input type="number" id="set-dinner-fat" min="0" onchange="setDinnerDefault('fat',this.value)"></div>
   </div>
 
+  <div class="card" style="margin-bottom:13px">
+    <div style="font-weight:700;font-size:14px;margin-bottom:6px">🤖 Voedingsopties laten maken door AI</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">De prompt rekent zelf uit hoeveel calorieën/eiwit je ontbijt+lunch+snacks moeten vullen (je dagdoel min avondeten). Kopieer 'm, plak in ChatGPT/Claude, en importeer het antwoord hieronder.</div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="copyNutritionAiPrompt()">📋 Kopieer AI-prompt</button>
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer">Import voeding<input type="file" accept=".json" onchange="importFoodItems(event)" style="display:none"></label>
+    </div>
+  </div>
+
   <div class="card">
     <div style="font-weight:700;font-size:14px;margin-bottom:12px">Voedingsopties (ontbijt/lunch/snacks)</div>
     <div id="food-pool-list"></div>
@@ -211,6 +224,7 @@ export function buildGymAppHtml(email: string): string {
     </div>
     <div class="fg"><label>Vet (g)</label><input type="number" id="food-fat" value="0" min="0"></div>
     <div class="fg"><label>Ingrediënten (voor boodschappenlijst)</label><input type="text" id="food-ingredients" placeholder="bijv. kwark 250g, blauwe bessen 100g"></div>
+    <div class="fg"><label>Winkel (optioneel)</label><input type="text" id="food-store" placeholder="bijv. AH, Jumbo, Lidl"></div>
     <label style="display:flex;align-items:center;gap:8px;margin-bottom:13px;cursor:pointer"><input type="checkbox" id="food-workday" style="width:18px;height:18px"><span style="font-size:12px;color:var(--muted)">Werkdag-geschikt (makkelijk mee te nemen)</span></label>
     <div style="display:flex;gap:8px"><button class="btn btn-primary" style="flex:1" onclick="addFoodItem()">Toevoegen</button><button class="btn btn-ghost" onclick="closeModal('m-add-food')">Annuleren</button></div>
   </div>
