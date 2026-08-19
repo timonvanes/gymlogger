@@ -139,12 +139,14 @@ export function buildGymAppHtml(email: string): string {
 
   <div class="card" style="margin-bottom:13px">
     <div style="font-weight:700;font-size:14px;margin-bottom:12px">Voedingsdoelen (per dag)</div>
+    <div class="fg"><label>Kcal</label><input type="number" id="set-cal-target" min="0" onchange="setNutritionTarget('calories',this.value)"></div>
+    <div style="font-size:11px;color:var(--muted);margin:12px 0 8px">Macroverdeling — samen altijd 100%</div>
     <div class="fr3">
-      <div class="fg"><label>Kcal</label><input type="number" id="set-cal-target" min="0" onchange="setNutritionTarget('calories',this.value)"></div>
-      <div class="fg"><label>Eiwit (g)</label><input type="number" id="set-protein-target" min="0" onchange="setNutritionTarget('protein',this.value)"></div>
-      <div class="fg"><label>Koolh. (g)</label><input type="number" id="set-carbs-target" min="0" onchange="setNutritionTarget('carbs',this.value)"></div>
+      <div class="fg"><label>Eiwit %</label><input type="number" id="set-protein-pct" min="0" max="100" onchange="setMacroPct('protein',this.value)"></div>
+      <div class="fg"><label>Koolh. %</label><input type="number" id="set-carbs-pct" min="0" max="100" onchange="setMacroPct('carbs',this.value)"></div>
+      <div class="fg"><label>Vet % (rest)</label><input type="number" id="set-fat-pct" disabled style="opacity:.6"></div>
     </div>
-    <div class="fg"><label>Vet (g)</label><input type="number" id="set-fat-target" min="0" onchange="setNutritionTarget('fat',this.value)"></div>
+    <div id="macro-grams-preview" style="font-size:11px;color:var(--muted)"></div>
   </div>
 
   <div class="card" style="margin-bottom:13px">

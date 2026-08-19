@@ -190,6 +190,10 @@ function ensureNewFields(){
   if(!S.exerciseNotes)S.exerciseNotes={};
   if(!S.nutrition)S.nutrition={};
   if(!S.nutrition.targets)S.nutrition.targets={calories:2200,protein:150,carbs:220,fat:70};
+  if(!S.nutrition.macroPct){
+    S.nutrition.macroPct={protein:30,carbs:40,fat:30};
+    recalcMacroTargetsFromPct();
+  }
   if(!S.nutrition.dinnerDefault)S.nutrition.dinnerDefault={calories:700,protein:35,carbs:60,fat:25};
   if(!S.nutrition.pool)S.nutrition.pool=[];
   if(!S.nutrition.log)S.nutrition.log={};
@@ -579,10 +583,28 @@ function toggleShoppingItem(i,checked){
   S.nutrition.shoppingChecked[item.store+'::'+item.text]=checked;
   saveS();
 }
+function recalcMacroTargetsFromPct(){
+  var cals=S.nutrition.targets.calories||0;
+  var pct=S.nutrition.macroPct;
+  S.nutrition.targets.protein=Math.round((cals*pct.protein/100)/4);
+  S.nutrition.targets.carbs=Math.round((cals*pct.carbs/100)/4);
+  S.nutrition.targets.fat=Math.round((cals*pct.fat/100)/9);
+}
 function setNutritionTarget(key,val){
   ensureNewFields();
   S.nutrition.targets[key]=Math.max(0,parseInt(val)||0);
-  saveS();renderNutrition();
+  if(key==='calories')recalcMacroTargetsFromPct();
+  saveS();renderSettings();renderNutrition();
+}
+function setMacroPct(key,val){
+  ensureNewFields();
+  var v=Math.max(0,Math.min(100,parseInt(val)||0));
+  var p=S.nutrition.macroPct;
+  if(key==='protein')p.protein=Math.min(v,100-p.carbs);
+  else if(key==='carbs')p.carbs=Math.min(v,100-p.protein);
+  p.fat=100-p.protein-p.carbs;
+  recalcMacroTargetsFromPct();
+  saveS();renderSettings();renderNutrition();
 }
 function setDinnerDefault(key,val){
   ensureNewFields();
@@ -824,7 +846,14 @@ function barChart(entries){
 function renderPrograms(){
   var list=document.getElementById('prog-list');var empty=document.getElementById('prog-empty');
   if(!S.programs.length){list.innerHTML='';empty.style.display='';return;}empty.style.display='none';
-  list.innerHTML=S.programs.map(function(p){return'<div class="prog-card" onclick="openProgDetail(\\''+p.id+'\\')"><div class="prog-card-title">'+p.name+'</div><div class="prog-card-meta">'+p.exercises.length+' oefen. - '+p.exercises.map(function(e){return e.name;}).slice(0,3).join(', ')+(p.exercises.length>3?'...':'')+'</div></div>';}).join('');
+  list.innerHTML=S.programs.map(function(p){
+    return'<div class="prog-card" style="display:flex;align-items:center;gap:8px;cursor:default"><div style="flex:1;cursor:pointer" onclick="openProgDetail(\\''+p.id+'\\')"><div class="prog-card-title">'+p.name+'</div><div class="prog-card-meta">'+p.exercises.length+' oefen. - '+p.exercises.map(function(e){return e.name;}).slice(0,3).join(', ')+(p.exercises.length>3?'...':'')+'</div></div><button class="btn-icon" onclick="event.stopPropagation();deleteProgram(\\''+p.id+'\\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg></button></div>';
+  }).join('');
+}
+function deleteProgram(id){
+  if(!confirm('Schema verwijderen?'))return;
+  S.programs=S.programs.filter(function(p){return p.id!==id;});
+  saveS();renderPrograms();renderWkSchemaSelect();showToast('Schema verwijderd');
 }
 function openCreateProg(){tempProgEx=[];document.getElementById('prog-name').value='';renderProgExList();openModal('m-create-prog');}
 function addProgEx(){tempProgEx.push({name:'',sets:3,reps:10,type:'normal',supersetPair:''});renderProgExList();}
@@ -955,11 +984,13 @@ function toggleDone(key,checked){
 function renderSettings(){
   ensureNewFields();
   renderActivityManageList();
-  var t=S.nutrition.targets,d=S.nutrition.dinnerDefault;
+  var t=S.nutrition.targets,d=S.nutrition.dinnerDefault,mp=S.nutrition.macroPct;
   var ct=document.getElementById('set-cal-target');if(ct)ct.value=t.calories;
-  var pt=document.getElementById('set-protein-target');if(pt)pt.value=t.protein;
-  var kt=document.getElementById('set-carbs-target');if(kt)kt.value=t.carbs;
-  var ft=document.getElementById('set-fat-target');if(ft)ft.value=t.fat;
+  var ppct=document.getElementById('set-protein-pct');if(ppct)ppct.value=mp.protein;
+  var kpct=document.getElementById('set-carbs-pct');if(kpct)kpct.value=mp.carbs;
+  var fpct=document.getElementById('set-fat-pct');if(fpct)fpct.value=mp.fat;
+  var gramsPreview=document.getElementById('macro-grams-preview');
+  if(gramsPreview)gramsPreview.textContent='= '+t.protein+'g eiwit, '+t.carbs+'g koolhydraten, '+t.fat+'g vet per dag';
   var dc=document.getElementById('set-dinner-cal');if(dc)dc.value=d.calories;
   var dp=document.getElementById('set-dinner-protein');if(dp)dp.value=d.protein;
   var dk=document.getElementById('set-dinner-carbs');if(dk)dk.value=d.carbs;
