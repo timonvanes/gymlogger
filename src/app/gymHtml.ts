@@ -67,11 +67,11 @@ export function buildGymAppHtml(email: string): string {
   <div class="page-header"><h1>Schema's</h1></div>
   <div class="action-row">
     <button class="btn btn-primary btn-sm" onclick="openCreateProg()">+ Nieuw</button>
-    <label class="btn btn-ghost btn-sm" style="cursor:pointer">Import schema<input type="file" accept=".json" onchange="importProgram(event)" style="display:none"></label>
+    <button class="btn btn-ghost btn-sm" onclick="openImportSchema()">Import schema</button>
   </div>
   <div class="card" style="margin-bottom:13px">
     <div style="font-weight:700;font-size:14px;margin-bottom:6px">🤖 Schema laten maken door AI</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Kopieer de prompt hieronder, plak 'm in ChatGPT/Claude en vul in wat voor schema je wilt. Plak het antwoord in een tekstbestand (.json) en gebruik "Import schema" hierboven.</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Kopieer de prompt hieronder, plak 'm in ChatGPT/Claude en vul in wat voor schema je wilt. Kopieer daarna het antwoord en plak het via "Import schema" hierboven — geen bestand nodig.</div>
     <button class="btn btn-ghost btn-sm" onclick="copyAiPrompt()">📋 Kopieer AI-prompt</button>
   </div>
   <div id="prog-list"></div>
@@ -152,12 +152,14 @@ export function buildGymAppHtml(email: string): string {
   <div class="card" style="margin-bottom:13px">
     <div style="font-weight:700;font-size:14px;margin-bottom:6px">Avondeten (vaste schatting)</div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Telt elke dag automatisch mee, hoef je niet los te loggen.</div>
+    <div class="fg"><label>Kcal</label><input type="number" id="set-dinner-cal" min="0" onchange="setDinnerDefault('calories',this.value)"></div>
+    <div style="font-size:11px;color:var(--muted);margin:12px 0 8px">Macroverdeling — samen altijd 100%</div>
     <div class="fr3">
-      <div class="fg"><label>Kcal</label><input type="number" id="set-dinner-cal" min="0" onchange="setDinnerDefault('calories',this.value)"></div>
-      <div class="fg"><label>Eiwit (g)</label><input type="number" id="set-dinner-protein" min="0" onchange="setDinnerDefault('protein',this.value)"></div>
-      <div class="fg"><label>Koolh. (g)</label><input type="number" id="set-dinner-carbs" min="0" onchange="setDinnerDefault('carbs',this.value)"></div>
+      <div class="fg"><label>Eiwit %</label><input type="number" id="set-dinner-protein-pct" min="0" max="100" onchange="setDinnerMacroPct('protein',this.value)"></div>
+      <div class="fg"><label>Koolh. %</label><input type="number" id="set-dinner-carbs-pct" min="0" max="100" onchange="setDinnerMacroPct('carbs',this.value)"></div>
+      <div class="fg"><label>Vet % (rest)</label><input type="number" id="set-dinner-fat-pct" disabled style="opacity:.6"></div>
     </div>
-    <div class="fg"><label>Vet (g)</label><input type="number" id="set-dinner-fat" min="0" onchange="setDinnerDefault('fat',this.value)"></div>
+    <div id="dinner-grams-preview" style="font-size:11px;color:var(--muted)"></div>
   </div>
 
   <div class="card" style="margin-bottom:13px">
@@ -165,7 +167,7 @@ export function buildGymAppHtml(email: string): string {
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">De prompt rekent zelf uit hoeveel calorieën/eiwit je ontbijt+lunch+snacks moeten vullen (je dagdoel min avondeten). Kopieer 'm, plak in ChatGPT/Claude, en importeer het antwoord hieronder.</div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm" onclick="copyNutritionAiPrompt()">📋 Kopieer AI-prompt</button>
-      <label class="btn btn-ghost btn-sm" style="cursor:pointer">Import voeding<input type="file" accept=".json" onchange="importFoodItems(event)" style="display:none"></label>
+      <button class="btn btn-ghost btn-sm" onclick="openImportFood()">Import voeding</button>
     </div>
   </div>
 
@@ -229,6 +231,14 @@ export function buildGymAppHtml(email: string): string {
     <div class="fg"><label>Winkel (optioneel)</label><input type="text" id="food-store" placeholder="bijv. AH, Jumbo, Lidl"></div>
     <label style="display:flex;align-items:center;gap:8px;margin-bottom:13px;cursor:pointer"><input type="checkbox" id="food-workday" style="width:18px;height:18px"><span style="font-size:12px;color:var(--muted)">Werkdag-geschikt (makkelijk mee te nemen)</span></label>
     <div style="display:flex;gap:8px"><button class="btn btn-primary" style="flex:1" onclick="addFoodItem()">Toevoegen</button><button class="btn btn-ghost" onclick="closeModal('m-add-food')">Annuleren</button></div>
+  </div>
+</div>
+<div class="modal-overlay hidden" id="m-import-text">
+  <div class="modal">
+    <div class="modal-title" id="import-text-title">Importeren</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Plak hier het antwoord dat je van ChatGPT/Claude hebt gekopieerd.</div>
+    <div class="fg"><textarea id="import-text-area" placeholder="Plak hier de JSON..." style="min-height:160px;font-family:var(--mono);font-size:12px"></textarea></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-primary" style="flex:1" onclick="confirmImportText()">Importeren</button><button class="btn btn-ghost" onclick="closeModal('m-import-text')">Annuleren</button></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>

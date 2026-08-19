@@ -195,6 +195,10 @@ function ensureNewFields(){
     recalcMacroTargetsFromPct();
   }
   if(!S.nutrition.dinnerDefault)S.nutrition.dinnerDefault={calories:700,protein:35,carbs:60,fat:25};
+  if(!S.nutrition.dinnerMacroPct){
+    S.nutrition.dinnerMacroPct={protein:20,carbs:35,fat:45};
+    recalcDinnerMacrosFromPct();
+  }
   if(!S.nutrition.pool)S.nutrition.pool=[];
   if(!S.nutrition.log)S.nutrition.log={};
   if(!S.nutrition.shoppingChecked)S.nutrition.shoppingChecked={};
@@ -606,10 +610,28 @@ function setMacroPct(key,val){
   recalcMacroTargetsFromPct();
   saveS();renderSettings();renderNutrition();
 }
+function recalcDinnerMacrosFromPct(){
+  var cals=S.nutrition.dinnerDefault.calories||0;
+  var pct=S.nutrition.dinnerMacroPct;
+  S.nutrition.dinnerDefault.protein=Math.round((cals*pct.protein/100)/4);
+  S.nutrition.dinnerDefault.carbs=Math.round((cals*pct.carbs/100)/4);
+  S.nutrition.dinnerDefault.fat=Math.round((cals*pct.fat/100)/9);
+}
 function setDinnerDefault(key,val){
   ensureNewFields();
   S.nutrition.dinnerDefault[key]=Math.max(0,parseInt(val)||0);
-  saveS();renderNutrition();
+  if(key==='calories')recalcDinnerMacrosFromPct();
+  saveS();renderSettings();renderNutrition();
+}
+function setDinnerMacroPct(key,val){
+  ensureNewFields();
+  var v=Math.max(0,Math.min(100,parseInt(val)||0));
+  var p=S.nutrition.dinnerMacroPct;
+  if(key==='protein')p.protein=Math.min(v,100-p.carbs);
+  else if(key==='carbs')p.carbs=Math.min(v,100-p.protein);
+  p.fat=100-p.protein-p.carbs;
+  recalcDinnerMacrosFromPct();
+  saveS();renderSettings();renderNutrition();
 }
 function openAddFood(){
   document.getElementById('food-name').value='';
@@ -689,35 +711,42 @@ function copyNutritionAiPrompt(){
     showToast('Kopieren mislukt, probeer opnieuw');
   });
 }
-function importFoodItems(event){
-  var file=event.target.files[0];if(!file)return;
-  var r=new FileReader();
-  r.onload=function(e){
-    try{
-      var data=JSON.parse(e.target.result);
-      var items=Array.isArray(data)?data:[data];
-      ensureNewFields();
-      var added=0;
-      items.forEach(function(it){
-        if(!it.name||!it.mealType)return;
-        S.nutrition.pool.push({
-          id:Date.now().toString(36)+Math.random().toString(36).slice(2,6)+added,
-          name:it.name,
-          mealType:it.mealType,
-          calories:parseInt(it.calories)||0,
-          protein:parseInt(it.protein)||0,
-          carbs:parseInt(it.carbs)||0,
-          fat:parseInt(it.fat)||0,
-          ingredients:it.ingredients||'',
-          workday:!!it.workday,
-          store:it.store||''
-        });
-        added++;
+function importFoodItemsFromText(text){
+  try{
+    var data=JSON.parse(text);
+    var items=Array.isArray(data)?data:[data];
+    ensureNewFields();
+    var added=0;
+    items.forEach(function(it){
+      if(!it.name||!it.mealType)return;
+      S.nutrition.pool.push({
+        id:Date.now().toString(36)+Math.random().toString(36).slice(2,6)+added,
+        name:it.name,
+        mealType:it.mealType,
+        calories:parseInt(it.calories)||0,
+        protein:parseInt(it.protein)||0,
+        carbs:parseInt(it.carbs)||0,
+        fat:parseInt(it.fat)||0,
+        ingredients:it.ingredients||'',
+        workday:!!it.workday,
+        store:it.store||''
       });
-      saveS();renderFoodPoolList();renderNutrition();showToast(added+' voedingsopties geimporteerd');
-    }catch(err){showToast('Fout: '+err.message);}
-  };
-  r.readAsText(file);event.target.value='';
+      added++;
+    });
+    saveS();renderFoodPoolList();renderNutrition();showToast(added+' voedingsopties geimporteerd');
+    return true;
+  }catch(err){showToast('Fout: '+err.message);return false;}
+}
+var __importTarget=null;
+function openImportSchema(){__importTarget='schema';document.getElementById('import-text-title').textContent='Schema importeren';document.getElementById('import-text-area').value='';openModal('m-import-text');}
+function openImportFood(){__importTarget='food';document.getElementById('import-text-title').textContent='Voeding importeren';document.getElementById('import-text-area').value='';openModal('m-import-text');}
+function confirmImportText(){
+  var text=document.getElementById('import-text-area').value.trim();
+  if(!text){showToast('Plak eerst de tekst van de AI');return;}
+  var ok=false;
+  if(__importTarget==='schema')ok=importProgramFromText(text);
+  else if(__importTarget==='food')ok=importFoodItemsFromText(text);
+  if(ok)closeModal('m-import-text');
 }
 
 /* ─── HISTORIE ─── */
@@ -864,7 +893,15 @@ function renderProgExList(){
 function saveProg(){var name=document.getElementById('prog-name').value.trim();if(!name){showToast('Vul een naam in');return;}var exs=tempProgEx.filter(function(e){return e.name.trim();});S.programs.push({id:Date.now().toString(),name:name,exercises:exs});saveS();closeModal('m-create-prog');renderPrograms();renderWkSchemaSelect();showToast('Schema opgeslagen');}
 function openProgDetail(id){curProgId=id;var p=S.programs.find(function(x){return x.id===id;});document.getElementById('pd-title').textContent=p.name;document.getElementById('pd-body').innerHTML=p.exercises.map(function(e){return'<div style="padding:5px 0;border-bottom:1px solid var(--surface3)">'+e.name+' - '+e.sets+'x'+e.reps+' <span style="color:var(--muted);font-size:11px">'+(e.type||'normaal')+(e.supersetPair?' + '+e.supersetPair:'')+'</span></div>';}).join('');openModal('m-prog-detail');}
 function delProg(){if(!confirm('Schema verwijderen?'))return;S.programs=S.programs.filter(function(p){return p.id!==curProgId;});saveS();closeModal('m-prog-detail');renderPrograms();renderWkSchemaSelect();showToast('Schema verwijderd');}
-function importProgram(event){var file=event.target.files[0];if(!file)return;var r=new FileReader();r.onload=function(e){try{var data=JSON.parse(e.target.result);var ps=Array.isArray(data)?data:[data];ps.forEach(function(p){if(!p.name||!p.exercises)throw new Error('Ongeldig formaat');S.programs.push({id:Date.now().toString()+Math.random(),name:p.name,exercises:p.exercises});});saveS();renderPrograms();renderWkSchemaSelect();showToast(ps.length+" schema's geimporteerd");}catch(err){showToast('Fout: '+err.message);}};r.readAsText(file);event.target.value='';}
+function importProgramFromText(text){
+  try{
+    var data=JSON.parse(text);
+    var ps=Array.isArray(data)?data:[data];
+    ps.forEach(function(p){if(!p.name||!p.exercises)throw new Error('Ongeldig formaat');S.programs.push({id:Date.now().toString()+Math.random(),name:p.name,exercises:p.exercises});});
+    saveS();renderPrograms();renderWkSchemaSelect();showToast(ps.length+" schema's geimporteerd");
+    return true;
+  }catch(err){showToast('Fout: '+err.message);return false;}
+}
 var AI_SCHEMA_PROMPT='Maak een trainingsschema in dit exacte JSON-formaat. Geef ALLEEN de JSON terug, zonder uitleg en zonder markdown code-block eromheen:\\n\\n'
   +'{\\n'
   +'  "name": "Naam van het schema",\\n'
@@ -991,10 +1028,13 @@ function renderSettings(){
   var fpct=document.getElementById('set-fat-pct');if(fpct)fpct.value=mp.fat;
   var gramsPreview=document.getElementById('macro-grams-preview');
   if(gramsPreview)gramsPreview.textContent='= '+t.protein+'g eiwit, '+t.carbs+'g koolhydraten, '+t.fat+'g vet per dag';
+  var dmp=S.nutrition.dinnerMacroPct;
   var dc=document.getElementById('set-dinner-cal');if(dc)dc.value=d.calories;
-  var dp=document.getElementById('set-dinner-protein');if(dp)dp.value=d.protein;
-  var dk=document.getElementById('set-dinner-carbs');if(dk)dk.value=d.carbs;
-  var df=document.getElementById('set-dinner-fat');if(df)df.value=d.fat;
+  var dppct=document.getElementById('set-dinner-protein-pct');if(dppct)dppct.value=dmp.protein;
+  var dkpct=document.getElementById('set-dinner-carbs-pct');if(dkpct)dkpct.value=dmp.carbs;
+  var dfpct=document.getElementById('set-dinner-fat-pct');if(dfpct)dfpct.value=dmp.fat;
+  var dinnerGramsPreview=document.getElementById('dinner-grams-preview');
+  if(dinnerGramsPreview)dinnerGramsPreview.textContent='= '+d.protein+'g eiwit, '+d.carbs+'g koolhydraten, '+d.fat+'g vet';
   renderFoodPoolList();
 }
 function renderActivityManageList(){
