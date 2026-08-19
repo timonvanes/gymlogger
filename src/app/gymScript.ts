@@ -200,7 +200,7 @@ function ensureNewFields(){
     recalcDinnerMacrosFromPct();
   }
   if(S.nutrition.beerCalories==null)S.nutrition.beerCalories=150;
-  if(S.nutrition.shoppingWindowDays==null)S.nutrition.shoppingWindowDays=3;
+  if(!S.nutrition.shoppingSelectedDates)S.nutrition.shoppingSelectedDates=[];
   if(!S.nutrition.pool)S.nutrition.pool=[];
   if(!S.nutrition.log)S.nutrition.log={};
   if(!S.nutrition.shoppingChecked)S.nutrition.shoppingChecked={};
@@ -689,33 +689,51 @@ function removeCustomSnack(idx){
   saveS();renderNutrition();
 }
 var __shoppingList=[];
+function renderShoppingDayPicker(){
+  var wrap=document.getElementById('shopping-day-picker');if(!wrap)return;
+  ensureNewFields();
+  var html='';
+  for(var i=0;i<14;i++){
+    var d=new Date(todayStr()+'T12:00:00');d.setDate(d.getDate()+i);
+    var ds=localDateStr(d);
+    var selected=S.nutrition.shoppingSelectedDates.includes(ds);
+    html+='<div class="day-pill" style="'+(selected?'background:var(--accent);border-color:var(--accent);color:#0e0e0f':'')+'" onclick="toggleShoppingDate(\\''+ds+'\\')"><div class="dp-name">'+DAY_NAMES[jsDayToIndex(d.getDay())]+'</div><div style="font-size:9px;margin-top:2px">'+fmtShort(ds)+'</div></div>';
+  }
+  wrap.innerHTML=html;
+}
+function toggleShoppingDate(ds){
+  ensureNewFields();
+  var idx=S.nutrition.shoppingSelectedDates.indexOf(ds);
+  if(idx>=0)S.nutrition.shoppingSelectedDates.splice(idx,1);
+  else S.nutrition.shoppingSelectedDates.push(ds);
+  saveS();renderShoppingDayPicker();renderShoppingList();
+}
 function renderShoppingList(){
   var wrap=document.getElementById('shopping-list');if(!wrap)return;
   ensureNewFields();
-  var winInput=document.getElementById('shopping-window-days');if(winInput)winInput.value=S.nutrition.shoppingWindowDays;
-  var n=S.nutrition.shoppingWindowDays||3;
+  renderShoppingDayPicker();
+  var dates=S.nutrition.shoppingSelectedDates;
+  if(!dates.length){wrap.innerHTML='<p style="font-size:13px;color:var(--muted)">Selecteer hierboven voor welke dag(en) je boodschappen wil doen.</p>';return;}
   var counts={};
-  for(var i=0;i<n;i++){
-    var d=new Date(todayStr()+'T12:00:00');d.setDate(d.getDate()+i);
-    var ds=localDateStr(d);
+  dates.forEach(function(ds){
     var log=S.nutrition.log[ds];
-    if(!log)continue;
+    if(!log)return;
     var ids=[];
     if(log.ontbijt)ids.push(log.ontbijt);
     if(log.lunch)ids.push(log.lunch);
     (log.snacks||[]).forEach(function(id){ids.push(id);});
     ids.forEach(function(id){
-      var item=S.nutrition.pool.find(function(p){return p.id===id;});
-      if(!item)return;
+      var item=resolveMealEntry(id);
+      if(!item||!item.ingredients)return;
       var store=(item.store||'').trim()||'Overig';
       (item.ingredients||'').split(',').map(function(s){return s.trim();}).filter(Boolean).forEach(function(ing){
         var key=store+'::'+ing;
         counts[key]=(counts[key]||0)+1;
       });
     });
-  }
+  });
   var keys=Object.keys(counts);
-  if(!keys.length){wrap.innerHTML='<p style="font-size:13px;color:var(--muted)">Nog geen maaltijden gekozen voor de komende '+n+' dag(en). Blader met de pijltjes bovenaan naar die dagen en kies alvast wat je gaat eten.</p>';return;}
+  if(!keys.length){wrap.innerHTML='<p style="font-size:13px;color:var(--muted)">Nog geen maaltijden gekozen voor de geselecteerde dag(en). Blader met de pijltjes bovenaan naar die dagen en kies alvast wat je gaat eten.</p>';return;}
   __shoppingList=keys.map(function(k){var idx=k.indexOf('::');return{store:k.slice(0,idx),text:k.slice(idx+2),count:counts[k]};});
   var byStore={};
   __shoppingList.forEach(function(item,i){
@@ -732,11 +750,6 @@ function renderShoppingList(){
     }).join('');
     return'<div style="margin-bottom:13px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">'+store+'</div>'+rows+'</div>';
   }).join('');
-}
-function setShoppingWindow(val){
-  ensureNewFields();
-  S.nutrition.shoppingWindowDays=Math.max(1,Math.min(14,parseInt(val)||3));
-  saveS();renderShoppingList();
 }
 function toggleShoppingItem(i,checked){
   ensureNewFields();
@@ -866,6 +879,82 @@ function buildNutritionAiPrompt(){
     +'- Veel eiwit, gevarieerd qua voedingsstoffen/vitamines (niet steeds hetzelfde)\\n'
     +'- Budgetvriendelijk — geef de voorkeur aan ingrediënten die je in bulk koopt en over meerdere dagen/maaltijden gebruikt (bijv. een brood, een pak kwark, een blok kaas) in plaats van iets wat je per portie apart moet kopen\\n'
     +'- Gangbare boodschappen bij een Nederlandse supermarkt';
+}
+function initVoiceButton(){
+  var micBtn=document.getElementById('ai-mic-btn');
+  if(!micBtn)return;
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  micBtn.style.display=SR?'':'none';
+}
+var __recognition=null;
+function startVoiceInput(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){showToast('Spraakherkenning niet ondersteund op dit apparaat');return;}
+  var micBtn=document.getElementById('ai-mic-btn');
+  if(__recognition){__recognition.stop();__recognition=null;if(micBtn)micBtn.style.color='';return;}
+  __recognition=new SR();
+  __recognition.lang='nl-NL';
+  __recognition.interimResults=false;
+  __recognition.maxAlternatives=1;
+  if(micBtn)micBtn.style.color='var(--danger)';
+  __recognition.onresult=function(e){
+    var text=e.results[0][0].transcript;
+    var inp=document.getElementById('ai-nutrition-request');
+    if(inp)inp.value=text;
+  };
+  __recognition.onerror=function(){showToast('Spraakherkenning mislukt');};
+  __recognition.onend=function(){__recognition=null;if(micBtn)micBtn.style.color='';};
+  __recognition.start();
+}
+async function requestAiNutritionOptions(){
+  ensureNewFields();
+  var reqInp=document.getElementById('ai-nutrition-request');
+  var reqText=reqInp?reqInp.value.trim():'';
+  if(!reqText){showToast('Vul in wat je erbij wil');return;}
+  var statusEl=document.getElementById('ai-generate-status');
+  var btn=document.getElementById('ai-generate-btn');
+  if(btn){btn.disabled=true;btn.textContent='Bezig...';}
+  if(statusEl)statusEl.textContent='';
+  try{
+    var res=await fetch('/api/nutrition-ai',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        request:reqText,
+        pool:S.nutrition.pool.map(function(p){return{name:p.name,mealType:p.mealType,calories:p.calories,protein:p.protein};}),
+        targets:S.nutrition.targets,
+        dinnerDefault:S.nutrition.dinnerDefault
+      })
+    });
+    var data=await res.json();
+    if(!res.ok)throw new Error(data.error||'Serverfout');
+    var items=data.items||[];
+    if(!items.length){showToast('Geen nieuwe opties ontvangen');}
+    items.forEach(function(it,idx){
+      if(!it.name||!it.mealType)return;
+      S.nutrition.pool.push({
+        id:Date.now().toString(36)+Math.random().toString(36).slice(2,6)+idx,
+        name:it.name,
+        mealType:it.mealType,
+        calories:parseInt(it.calories)||0,
+        protein:parseInt(it.protein)||0,
+        carbs:parseInt(it.carbs)||0,
+        fat:parseInt(it.fat)||0,
+        ingredients:it.ingredients||'',
+        workday:!!it.workday,
+        store:it.store||''
+      });
+    });
+    saveS();renderFoodPoolList();renderNutrition();
+    if(items.length){
+      if(reqInp)reqInp.value='';
+      showToast(items.length+' nieuwe optie(s) toegevoegd!');
+    }
+  }catch(err){
+    if(statusEl)statusEl.textContent='Fout: '+err.message;
+    showToast('Fout: '+err.message);
+  }
+  if(btn){btn.disabled=false;btn.textContent='Genereer';}
 }
 function copyNutritionAiPrompt(){
   var prompt=buildNutritionAiPrompt();
@@ -1200,6 +1289,7 @@ function toggleDone(key,checked){
 function renderSettings(){
   ensureNewFields();
   renderActivityManageList();
+  initVoiceButton();
   var t=S.nutrition.targets,d=S.nutrition.dinnerDefault,mp=S.nutrition.macroPct;
   var ct=document.getElementById('set-cal-target');if(ct)ct.value=t.calories;
   var ppct=document.getElementById('set-protein-pct');if(ppct)ppct.value=mp.protein;

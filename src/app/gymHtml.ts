@@ -53,7 +53,8 @@ export function buildGymAppHtml(email: string): string {
   </label>
   <div id="nutrition-meals"></div>
   <div class="sdiv"><hr><span>Boodschappenlijst</span><hr></div>
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><label style="margin:0;font-size:11px;color:var(--muted)">Voor de komende</label><input type="number" id="shopping-window-days" min="1" max="14" style="width:56px" onchange="setShoppingWindow(this.value)"><label style="margin:0;font-size:11px;color:var(--muted)">dag(en) — alleen wat je hebt gekozen</label></div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Voor welke dagen ga je boodschappen doen?</div>
+  <div class="day-grid" id="shopping-day-picker" style="grid-template-columns:repeat(7,1fr);margin-bottom:13px"></div>
   <div id="shopping-list"></div>
 </div>
 
@@ -179,7 +180,18 @@ export function buildGymAppHtml(email: string): string {
   </div>
 
   <div class="card" style="margin-bottom:13px">
-    <div style="font-weight:700;font-size:14px;margin-bottom:6px">🤖 Voedingsopties laten maken door AI</div>
+    <div style="font-weight:700;font-size:14px;margin-bottom:6px">🤖 Vraag Claude om opties</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Claude kijkt naar wat je al hebt en vult aan. Bijv. "extra lunchopties met vis" of "iets met kip voor werkdagen".</div>
+    <div style="display:flex;gap:7px;margin-bottom:8px">
+      <input type="text" id="ai-nutrition-request" placeholder="Wat wil je erbij?" style="flex:1">
+      <button class="btn-icon" id="ai-mic-btn" onclick="startVoiceInput()" style="display:none;flex-shrink:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/></svg></button>
+    </div>
+    <button class="btn btn-primary btn-sm" id="ai-generate-btn" onclick="requestAiNutritionOptions()">Genereer</button>
+    <div id="ai-generate-status" style="font-size:11px;color:var(--muted);margin-top:8px"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:13px">
+    <div style="font-weight:700;font-size:14px;margin-bottom:6px">Of handmatig via ChatGPT/Claude</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">De prompt rekent zelf uit hoeveel calorieën/eiwit je ontbijt+lunch+snacks moeten vullen, vraagt om simpele kant-en-klare werkdag-lunches en exacte hoeveelheden per ingrediënt. Kopieer 'm, plak in ChatGPT/Claude, en importeer het antwoord hieronder.</div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm" onclick="copyNutritionAiPrompt()">📋 Kopieer AI-prompt</button>
