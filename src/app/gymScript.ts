@@ -881,20 +881,24 @@ function startVoiceInput(){
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){showToast('Spraakherkenning niet ondersteund op dit apparaat');return;}
   var micBtn=document.getElementById('ai-mic-btn');
-  if(__recognition){__recognition.stop();__recognition=null;if(micBtn)micBtn.style.color='';return;}
+  if(__recognition){__recognition.stop();return;}
   __recognition=new SR();
   __recognition.lang='nl-NL';
-  __recognition.interimResults=false;
+  __recognition.interimResults=true;
+  __recognition.continuous=true;
   __recognition.maxAlternatives=1;
   if(micBtn)micBtn.style.color='var(--danger)';
   __recognition.onresult=function(e){
-    var text=e.results[0][0].transcript;
+    var text='';
+    for(var i=0;i<e.results.length;i++){text+=e.results[i][0].transcript;}
     var inp=document.getElementById('ai-nutrition-request');
     if(inp)inp.value=text;
   };
-  __recognition.onerror=function(){showToast('Spraakherkenning mislukt');};
+  __recognition.onerror=function(e){
+    if(e.error!=='no-speech'&&e.error!=='aborted')showToast('Spraakherkenning fout: '+e.error);
+  };
   __recognition.onend=function(){__recognition=null;if(micBtn)micBtn.style.color='';};
-  __recognition.start();
+  try{__recognition.start();}catch(err){showToast('Kon spraakherkenning niet starten');__recognition=null;if(micBtn)micBtn.style.color='';}
 }
 async function requestAiNutritionOptions(){
   ensureNewFields();
