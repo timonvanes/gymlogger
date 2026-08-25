@@ -862,10 +862,11 @@ function buildNutritionAiPrompt(){
     +'- Avondeten (vast, telt al mee, hoef je niet in te vullen): '+d.calories+' kcal, '+d.protein+'g eiwit, '+d.carbs+'g koolhydraten, '+d.fat+'g vet\\n'
     +'- Wat ontbijt + lunch + snacks SAMEN per dag ongeveer moeten opleveren (dagdoel min avondeten): '+remCal+' kcal, '+remProtein+'g eiwit, '+remCarbs+'g koolhydraten, '+remFat+'g vet\\n\\n'
     +'Maak het volgende:\\n'
-    +'- 5 ontbijtopties: mag iets uitgebreider (bijv. havermout of eieren klaarmaken), maar hou het simpel, weinig kooktijd\\n'
-    +'- 5 lunchopties, waarvan minstens 3 heel simpel en "workday": true — denk aan kant-en-klare bakkerijproducten (bijv. afgebakken snijbroodjes of kaasbroodjes van de supermarkt) met simpel beleg erop, geen bereiding nodig\\n'
-    +'- 4 snackopties\\n\\n'
-    +'Let bij het kiezen van ingrediënten op:\\n'
+    +'- 8 ontbijtopties: mag iets uitgebreider (bijv. havermout of eieren klaarmaken), maar hou het simpel, weinig kooktijd\\n'
+    +'- 8 lunchopties, waarvan minstens de helft heel simpel en "workday": true — denk aan kant-en-klare bakkerijproducten (bijv. afgebakken snijbroodjes of kaasbroodjes van de supermarkt) met simpel beleg erop, geen bereiding nodig\\n'
+    +'- 6 snackopties\\n\\n'
+    +'Let bij het kiezen op:\\n'
+    +'- Duidelijke spreiding in calorieën binnen elke categorie: minstens één kleinere optie, een paar gemiddelde, en minstens één grotere optie — niet allemaal rond hetzelfde aantal kcal\\n'
     +'- Veel eiwit, gevarieerd qua voedingsstoffen/vitamines (niet steeds hetzelfde)\\n'
     +'- Budgetvriendelijk — geef de voorkeur aan ingrediënten die je in bulk koopt en over meerdere dagen/maaltijden gebruikt (bijv. een brood, een pak kwark, een blok kaas) in plaats van iets wat je per portie apart moet kopen\\n'
     +'- Gangbare boodschappen bij een Nederlandse supermarkt';
@@ -877,28 +878,64 @@ function initVoiceButton(){
   micBtn.style.display=SR?'':'none';
 }
 var __recognition=null;
+var __voiceWanted=false;
+function __setVoiceStatus(msg){
+  var st=document.getElementById('ai-generate-status');
+  if(st)st.textContent=msg;
+}
 function startVoiceInput(){
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){showToast('Spraakherkenning niet ondersteund op dit apparaat');return;}
+  if(!SR){showToast('Spraakherkenning wordt niet ondersteund door deze browser (gebruik Chrome op Android, of typ het handmatig)');return;}
+  if(location.protocol!=='https:'&&location.hostname!=='localhost'){showToast('Spraakherkenning werkt alleen via https');return;}
   var micBtn=document.getElementById('ai-mic-btn');
-  if(__recognition){__recognition.stop();return;}
+  if(__recognition||__voiceWanted){
+    __voiceWanted=false;
+    if(__recognition)__recognition.stop();
+    return;
+  }
+  __voiceWanted=true;
+  __runVoiceRecognition(SR,micBtn);
+}
+function __runVoiceRecognition(SR,micBtn){
   __recognition=new SR();
   __recognition.lang='nl-NL';
   __recognition.interimResults=true;
-  __recognition.continuous=true;
+  __recognition.continuous=false;
   __recognition.maxAlternatives=1;
+  var inpEl=document.getElementById('ai-nutrition-request');
+  var prefix=inpEl&&inpEl.value.trim()?inpEl.value.trim()+' ':'';
   if(micBtn)micBtn.style.color='var(--danger)';
+  __setVoiceStatus('Luisteren... tik nogmaals op de microfoon om te stoppen');
   __recognition.onresult=function(e){
     var text='';
     for(var i=0;i<e.results.length;i++){text+=e.results[i][0].transcript;}
     var inp=document.getElementById('ai-nutrition-request');
-    if(inp)inp.value=text;
+    if(inp)inp.value=(prefix+text).trim();
   };
   __recognition.onerror=function(e){
-    if(e.error!=='no-speech'&&e.error!=='aborted')showToast('Spraakherkenning fout: '+e.error);
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){
+      showToast('Microfoon geblokkeerd — geef toestemming voor de microfoon in je browser-/site-instellingen');
+      __voiceWanted=false;
+    }else if(e.error==='audio-capture'){
+      showToast('Geen microfoon gevonden op dit apparaat');
+      __voiceWanted=false;
+    }else if(e.error==='network'){
+      showToast('Spraakherkenning fout: netwerkprobleem');
+    }else if(e.error!=='no-speech'&&e.error!=='aborted'){
+      showToast('Spraakherkenning fout: '+e.error);
+    }
   };
-  __recognition.onend=function(){__recognition=null;if(micBtn)micBtn.style.color='';};
-  try{__recognition.start();}catch(err){showToast('Kon spraakherkenning niet starten');__recognition=null;if(micBtn)micBtn.style.color='';}
+  __recognition.onend=function(){
+    __recognition=null;
+    if(__voiceWanted){__runVoiceRecognition(SR,micBtn);}
+    else{if(micBtn)micBtn.style.color='';__setVoiceStatus('');}
+  };
+  try{__recognition.start();}catch(err){
+    showToast('Kon spraakherkenning niet starten');
+    __recognition=null;__voiceWanted=false;
+    if(micBtn)micBtn.style.color='';
+    __setVoiceStatus('');
+  }
 }
 async function requestAiNutritionOptions(){
   ensureNewFields();

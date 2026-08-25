@@ -14,6 +14,28 @@ interface Targets {
   fat: number;
 }
 
+const FOOD_ITEM_SCHEMA = {
+  type: "object",
+  properties: {
+    name: { type: "string" },
+    mealType: { type: "string", enum: ["ontbijt", "lunch", "snack"] },
+    calories: { type: "number" },
+    protein: { type: "number" },
+    carbs: { type: "number" },
+    fat: { type: "number" },
+    ingredients: {
+      type: "string",
+      description:
+        "Komma-gescheiden lijst, elk ingrediënt MET een concrete hoeveelheid en eenheid, bijv. 'kwark 250g, havermout 40g, banaan 1 stuk'",
+    },
+    workday: {
+      type: "boolean",
+      description: "true als het zonder bereiding of met heel weinig moeite klaar te maken/mee te nemen is",
+    },
+  },
+  required: ["name", "mealType", "calories", "protein", "carbs", "fat", "ingredients", "workday"],
+};
+
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -39,28 +61,21 @@ export async function POST(req: NextRequest) {
   const remFat = Math.max(0, (targets.fat || 0) - (dinnerDefault.fat || 0));
 
   const poolSummary = pool.length
-    ? pool.map((p) => `- ${p.name} (${p.mealType}, ${p.calories}kcal, ${p.protein}g eiwit)`).join("\n")
+    ? pool.map((p) => `- "${p.name}" (${p.mealType}, ${p.calories}kcal)`).join("\n")
     : "(nog leeg)";
 
-  const prompt = `Je helpt met het aanvullen van een lijst voedingsopties (ontbijt/lunch/snack) in een voedings-app.
+  const prompt = `Je helpt met het aanvullen van een lijst voedingsopties (ontbijt/lunch/snack) in een voedings-app, door de "add_food_options" tool aan te roepen.
 
-Dit staat er al in de lijst:
+Dit staat er AL in de lijst — dit exact overnemen of een lichte variant ervan (zelfde hoofdingrediënt + vergelijkbare bereiding) telt als duplicaat en mag NIET:
 ${poolSummary}
 
 Verzoek van de gebruiker: "${userRequest}"
 
-Voeg NIEUWE opties toe die aansluiten bij dit verzoek. Vermijd duplicaten met wat er al in de lijst staat. Geef ALLEEN JSON terug, geen uitleg, geen markdown code-block, in dit formaat:
-
-[
-  { "name": "Naam van het gerecht", "mealType": "ontbijt", "calories": 380, "protein": 32, "carbs": 40, "fat": 8, "ingredients": "kwark 250g, havermout 40g", "workday": true }
-]
-
-Regels:
-- "mealType" is altijd een van: "ontbijt", "lunch", "snack" — kies wat past bij het verzoek
-- "calories", "protein", "carbs", "fat" zijn getallen (kcal/gram), geen tekst
-- "ingredients" MOET voor elk ingrediënt een concrete hoeveelheid met eenheid bevatten (bijv. "250g", "1 stuk"), nooit zonder hoeveelheid
-- "workday" is true als het zonder bereiding of met heel weinig moeite klaar te maken/mee te nemen is
-- Budgetvriendelijk, gangbare Nederlandse supermarkt-ingrediënten, gevarieerd qua voedingsstoffen
+Voeg 6 tot 10 NIEUWE opties toe die aansluiten bij dit verzoek en mealType-categorie. Belangrijke eisen:
+- Echt iets anders dan wat al in de lijst staat, ook conceptueel (niet alleen de naam net iets anders)
+- Duidelijke spreiding in calorieën binnen wat je toevoegt: minstens één kleinere optie, een paar gemiddelde, en minstens één grotere optie — niet allemaal rond hetzelfde aantal kcal
+- Veel eiwit, gevarieerd qua voedingsstoffen/vitamines
+- Budgetvriendelijk, gangbare Nederlandse supermarkt-ingrediënten
 - Context (hoeft niet exact): avondeten is al vast ${dinnerDefault.calories || 0} kcal; ontbijt+lunch+snacks moeten per dag samen ongeveer ${remCal} kcal, ${remProtein}g eiwit, ${remCarbs}g koolhydraten, ${remFat}g vet leveren`;
 
   try {
@@ -75,6 +90,20 @@ Regels:
         model: "claude-sonnet-5",
         max_tokens: 4096,
         messages: [{ role: "user", content: prompt }],
+        tools: [
+          {
+            name: "add_food_options",
+            description: "Voeg nieuwe voedingsopties toe aan de pool van de gebruiker",
+            input_schema: {
+              type: "object",
+              properties: {
+                items: { type: "array", items: FOOD_ITEM_SCHEMA },
+              },
+              required: ["items"],
+            },
+          },
+        ],
+        tool_choice: { type: "tool", name: "add_food_options" },
       }),
     });
 
@@ -87,22 +116,21 @@ Regels:
     }
 
     const data = await res.json();
-    const blocks: { type: string; text?: string }[] = Array.isArray(data.content) ? data.content : [];
-    const text: string = blocks
-      .filter((b) => b.type === "text" && typeof b.text === "string")
-      .map((b) => b.text)
-      .join("\n");
+    const blocks: { type: string; name?: string; input?: { items?: unknown } }[] = Array.isArray(
+      data.content
+    )
+      ? data.content
+      : [];
+    const toolBlock = blocks.find((b) => b.type === "tool_use" && b.name === "add_food_options");
 
-    let jsonText = text.trim();
-    const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    if (fenceMatch) jsonText = fenceMatch[1].trim();
-    const start = jsonText.search(/[[{]/);
-    const end = Math.max(jsonText.lastIndexOf("]"), jsonText.lastIndexOf("}"));
-    if (start >= 0 && end > start) jsonText = jsonText.slice(start, end + 1);
+    if (!toolBlock || !Array.isArray(toolBlock.input?.items)) {
+      return NextResponse.json(
+        { error: "Geen geldig antwoord van Claude ontvangen (geen tool-aanroep gevonden)" },
+        { status: 502 }
+      );
+    }
 
-    const parsed = JSON.parse(jsonText);
-    const items = Array.isArray(parsed) ? parsed : [parsed];
-    return NextResponse.json({ items });
+    return NextResponse.json({ items: toolBlock.input.items });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Onbekende fout";
     return NextResponse.json({ error: message }, { status: 500 });
