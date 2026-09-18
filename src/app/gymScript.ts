@@ -188,6 +188,7 @@ function ensureNewFields(){
     if(S.activityTargets[a.key]==null)S.activityTargets[a.key]=1;
   });
   if(!S.exerciseNotes)S.exerciseNotes={};
+  if(!S._deletedHistoryDates)S._deletedHistoryDates=[];
   if(!S.nutrition)S.nutrition={};
   if(!S.nutrition.targets)S.nutrition.targets={calories:2200,protein:150,carbs:220,fat:70};
   if(!S.nutrition.macroPct){
@@ -225,15 +226,56 @@ function pinExNote(bi,ei){
   saveS();renderWorkout();
   showToast(S.exerciseNotes[key].pinned?'Notitie gepind':'Pin verwijderd');
 }
+/* Voordat we de hele S-blob overschrijven: haal de nieuwste remote data op en vul
+   lokaal ontbrekende dagen/items aan. Voorkomt dat een oud openstaand tabblad
+   (met verouderde S in het geheugen) recentere logs van een ander tabblad/toestel
+   overschrijft en zo laat "verdwijnen". */
+function mergeRemoteIntoLocal(remote){
+  if(!remote)return;
+  ensureNewFields();
+  var deletedHist={};(S._deletedHistoryDates||[]).forEach(function(d){deletedHist[d]=true;});
+  if(Array.isArray(remote.history)){
+    var localDates={};S.history.forEach(function(h){localDates[h.date]=true;});
+    remote.history.forEach(function(h){if(!localDates[h.date]&&!deletedHist[h.date])S.history.push(h);});
+  }
+  if(Array.isArray(remote.activityDone)){
+    var doneSet={};S.activityDone.forEach(function(k){doneSet[k]=true;});
+    remote.activityDone.forEach(function(k){if(!doneSet[k]){S.activityDone.push(k);doneSet[k]=true;}});
+  }
+  if(remote.nutrition){
+    if(remote.nutrition.log){
+      Object.keys(remote.nutrition.log).forEach(function(ds){if(!S.nutrition.log[ds])S.nutrition.log[ds]=remote.nutrition.log[ds];});
+    }
+    if(remote.nutrition.shoppingChecked){
+      Object.keys(remote.nutrition.shoppingChecked).forEach(function(k){if(!(k in S.nutrition.shoppingChecked))S.nutrition.shoppingChecked[k]=remote.nutrition.shoppingChecked[k];});
+    }
+  }
+  if(remote.exerciseNotes){
+    Object.keys(remote.exerciseNotes).forEach(function(k){if(!S.exerciseNotes[k])S.exerciseNotes[k]=remote.exerciseNotes[k];});
+  }
+}
 var __saveTimer=null;
+async function __doSaveS(){
+  try{
+    var res=await window.supabase.from('gym_state').select('data').eq('user_id',window.currentUserId).maybeSingle();
+    if(!res.error&&res.data&&res.data.data)mergeRemoteIntoLocal(res.data.data);
+  }catch(e){}
+  window.supabase.from('gym_state').update({data:S,updated_at:new Date().toISOString()}).eq('user_id',window.currentUserId).then(function(res){
+    if(res.error)console.error('Opslaan mislukt:',res.error.message);
+  });
+}
 function saveS(){
   clearTimeout(__saveTimer);
-  __saveTimer=setTimeout(function(){
-    window.supabase.from('gym_state').update({data:S,updated_at:new Date().toISOString()}).eq('user_id',window.currentUserId).then(function(res){
-      if(res.error)console.error('Opslaan mislukt:',res.error.message);
-    });
-  },350);
+  __saveTimer=setTimeout(function(){__saveTimer=null;__doSaveS();},350);
 }
+/* Als de app naar de achtergrond gaat (tab wisselen, app sluiten op telefoon) direct
+   opslaan i.p.v. te wachten op de debounce-timer — anders kan een net opgeslagen
+   training verloren gaan omdat de pagina al weg is voor de timer afgaat. */
+function __flushSave(){
+  if(__saveTimer){clearTimeout(__saveTimer);__saveTimer=null;__doSaveS();}
+}
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')__flushSave();});
+window.addEventListener('pagehide',__flushSave);
 async function loadS(){
   try{
     var res=await window.supabase.from('gym_state').select('data').eq('user_id',window.currentUserId).maybeSingle();
@@ -1086,6 +1128,8 @@ function renderHistory(){
 function deleteHistoryDay(date){
   if(!confirm('Deze training verwijderen uit je historie?'))return;
   S.history=S.history.filter(function(h){return h.date!==date;});
+  ensureNewFields();
+  if(!S._deletedHistoryDates.includes(date))S._deletedHistoryDates.push(date);
   saveS();renderHistory();showToast('Training verwijderd');
 }
 function toggleHistoryDetail(idx){
