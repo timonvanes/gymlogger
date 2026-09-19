@@ -148,3 +148,5 @@ select option{background:var(--surface2)}
 .hist-ss{border-left:3px solid #6b4fc4;padding-left:10px;margin:8px 0}
 .hist-ss-label{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--purple);padding-top:6px}
 .hist-daynote{margin-top:10px;padding:10px 12px;background:var(--surface2);border-radius:10px;font-size:13px;color:var(--muted)}
+.hist-skip{color:var(--muted);font-style:italic;font-size:12px;opacity:.75}
+.hist-sub{color:var(--muted);font-size:11px;margin-top:2px}

@@ -526,9 +526,13 @@ function confirmImportText(){
 var histView=(function(){try{return localStorage.getItem('gym_hist_view')||'overzicht';}catch(e){return 'overzicht';}})();
 function setHistoryView(v){histView=v;try{localStorage.setItem('gym_hist_view',v);}catch(e){}renderHistory();}
 function histStats(day){
-  var sets=0,vol=0,exN=0;
-  day.exercises.forEach(function(b){b.exercises.forEach(function(ex){exN++;(ex.setData||[]).forEach(function(st){if(st&&st.weight){sets++;vol+=parseFloat(st.weight)*(parseFloat(st.reps)||0);}});});});
-  return{ex:exN,sets:sets,vol:Math.round(vol)};
+  var sets=0,vol=0,exN=0,skipped=0;
+  day.exercises.forEach(function(b){b.exercises.forEach(function(ex){
+    var did=0;
+    (ex.setData||[]).forEach(function(st){if(st&&st.weight){did++;sets++;vol+=parseFloat(st.weight)*(parseFloat(st.reps)||0);}});
+    if(did)exN++;else skipped++;
+  });});
+  return{ex:exN,skipped:skipped,sets:sets,vol:Math.round(vol)};
 }
 function histExerciseHtml(ex){
   var logged=(ex.setData||[]).filter(function(st){return st&&st.weight;});
@@ -536,12 +540,12 @@ function histExerciseHtml(ex){
   var nl=ex.note?'<div class="hist-note">"'+ex.note+'"</div>':'';
   if(histView==='detail'){
     var chips=logged.map(function(st,i){return'<span class="chip"><span style="color:var(--muted)">'+(i+1)+'</span> '+st.weight+'kg x '+(st.reps||'?')+'</span>';}).join('');
-    return'<div class="hd-ex"><div class="hd-ex-name">'+ex.name+tl+'</div><div class="hd-chips">'+(chips||'<span style="font-size:12px;color:var(--muted)">'+ex.sets+'x'+ex.reps+' (geen gewicht)</span>')+'</div>'+nl+'</div>';
+    return'<div class="hd-ex"><div class="hd-ex-name">'+ex.name+tl+'</div><div class="hd-chips">'+(chips||'<span class="hist-skip">Niet gedaan</span>')+'</div>'+nl+'</div>';
   }
-  var right='<span style="color:var(--muted)">'+ex.sets+'x'+ex.reps+'</span>';
+  var right='<span class="hist-skip">Niet gedaan</span>';
   if(logged.length){
     var top=logged.reduce(function(m,st){return parseFloat(st.weight)>parseFloat(m.weight)?st:m;},logged[0]);
-    right='<span class="hist-top">'+top.weight+' kg</span><span style="color:var(--muted)"> x '+(top.reps||'?')+' &middot; '+logged.length+' sets</span>';
+    right='<span class="hist-top">'+top.weight+' kg</span><span style="color:var(--muted)"> x '+(top.reps||'?')+'</span><div class="hist-sub">'+logged.length+(logged.length===1?' set':' sets')+(logged.length>1?': '+logged.map(function(st){return st.weight;}).join(' &middot; '):'')+'</div>';
   }
   return'<div class="hist-line"><div class="hist-line-name">'+ex.name+tl+'</div><div class="hist-line-val">'+right+'</div></div>'+nl;
 }
@@ -563,7 +567,7 @@ function renderHistory(){
     var st=histStats(day);
     var allNames=day.exercises.flatMap(function(b){return b.exercises.map(function(e){return e.name;});});
     var label=day.schemaName?day.schemaName:allNames.slice(0,2).join(', ')+(allNames.length>2?'...':'');
-    var meta=st.ex+(st.ex===1?' oefening':' oefeningen')+(st.sets?' &middot; '+st.sets+' sets':'')+(st.vol?' &middot; '+st.vol.toLocaleString('nl-NL')+' kg':'');
+    var meta=st.ex+(st.ex===1?' oefening':' oefeningen')+(st.skipped?' ('+st.skipped+' niet gedaan)':'')+(st.sets?' &middot; '+st.sets+' sets':'')+(st.vol?' &middot; '+st.vol.toLocaleString('nl-NL')+' kg':'');
     var blocksHtml=day.exercises.map(function(block){
       var exHtml=block.exercises.map(histExerciseHtml).join('');
       if(block.type==='superset')return'<div class="hist-ss"><div class="hist-ss-label">Superset</div>'+exHtml+'</div>';
