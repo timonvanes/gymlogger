@@ -17,12 +17,12 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gym Tracker",
+  title: "Gymlogger",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Gym",
+    title: "Gymlogger",
   },
   icons: {
     icon: [
@@ -37,6 +37,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
   themeColor: "#0e0e0f",
 };
 

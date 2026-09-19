@@ -17,7 +17,7 @@ export default async function LoginPage({
       >
         <div className="flex items-center gap-3">
           <Logo size={44} />
-          <h1 className="text-xl font-bold text-[#f0f0ee]">Gym Tracker</h1>
+          <h1 className="text-xl font-bold text-[#f0f0ee]">Gymlogger</h1>
         </div>
 
         {message && (

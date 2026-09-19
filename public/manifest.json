@@ -1,7 +1,7 @@
 {
-  "name": "Gym Tracker",
-  "short_name": "Gym",
-  "description": "Workout logger",
+  "name": "Gymlogger",
+  "short_name": "Gymlogger",
+  "description": "Log je trainingen, plan je week",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0e0e0f",
