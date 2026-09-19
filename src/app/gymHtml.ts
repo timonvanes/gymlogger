@@ -36,6 +36,7 @@ export function buildGymAppHtml(email: string): string {
 <!-- HISTORIE -->
 <div class="screen" id="screen-history">
   <div class="page-header"><h1>Historie</h1></div>
+  <div class="seg" id="hist-seg"></div>
   <div id="hist-list"></div>
   <div id="hist-empty" class="empty-state" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><p>Je afgeronde trainingen verschijnen hier</p></div>
 </div>
