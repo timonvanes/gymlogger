@@ -142,18 +142,18 @@ export function buildGymAppHtml(email: string): string {
 </div>
 <div class="modal-overlay hidden" id="m-create-prog">
   <div class="modal">
-    <div class="modal-title">Nieuw schema</div>
+    <div class="modal-title" id="prog-modal-title">Nieuw schema</div>
     <div class="fg"><label>Naam</label><input type="text" id="prog-name" placeholder="bijv. Push Day A"></div>
     <div id="prog-ex-list" style="margin-bottom:9px"></div>
-    <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:13px" onclick="addProgEx()">+ Oefening</button>
+    <button class="btn btn-ghost" style="width:100%;margin-bottom:13px" onclick="addProgEx()">+ Oefening toevoegen</button>
     <div style="display:flex;gap:8px"><button class="btn btn-primary" style="flex:1" onclick="saveProg()">Opslaan</button><button class="btn btn-ghost" onclick="closeModal('m-create-prog')">Annuleren</button></div>
   </div>
 </div>
 <div class="modal-overlay hidden" id="m-prog-detail">
   <div class="modal">
     <div class="modal-title" id="pd-title"></div>
-    <div id="pd-body" style="margin-bottom:15px;font-size:13px;color:var(--muted)"></div>
-    <div style="display:flex;gap:8px"><button class="btn btn-danger btn-sm" onclick="delProg()">Verwijderen</button><button class="btn btn-ghost" style="flex:1" onclick="closeModal('m-prog-detail')">Sluiten</button></div>
+    <div id="pd-body" style="margin-bottom:16px;font-size:14px;color:var(--muted)"></div>
+    <div class="stack"><button class="btn btn-primary btn-lg" onclick="editProg()">Schema bewerken</button><div class="action-row two" style="margin:0"><button class="btn btn-danger" onclick="delProg()">Verwijderen</button><button class="btn btn-ghost" onclick="closeModal('m-prog-detail')">Sluiten</button></div></div>
   </div>
 </div>
 <div class="modal-overlay hidden" id="m-confirm">

@@ -616,14 +616,75 @@ function deleteProgram(id){
     saveS();renderPrograms();renderWkSchemaSelect();showToast('Schema verwijderd');
   });
 }
-function openCreateProg(){tempProgEx=[];document.getElementById('prog-name').value='';renderProgExList();openModal('m-create-prog');}
-function addProgEx(){tempProgEx.push({name:'',sets:3,reps:10,type:'normal',supersetPair:''});renderProgExList();}
-function renderProgExList(){
-  var w=document.getElementById('prog-ex-list');if(!tempProgEx.length){w.innerHTML='';return;}
-  w.innerHTML=tempProgEx.map(function(ex,i){return'<div style="background:var(--surface2);border-radius:8px;padding:11px;margin-bottom:7px"><div style="display:flex;gap:7px;margin-bottom:7px"><input type="text" value="'+ex.name+'" placeholder="Oefening naam" style="flex:1" onchange="tempProgEx['+i+'].name=this.value"><button class="btn-icon" onclick="tempProgEx.splice('+i+',1);renderProgExList()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div><div class="fr3"><div><label style="font-size:10px">Sets</label><input type="number" value="'+ex.sets+'" min="1" onchange="tempProgEx['+i+'].sets=+this.value||3"></div><div><label style="font-size:10px">Reps</label><input type="number" value="'+ex.reps+'" min="1" onchange="tempProgEx['+i+'].reps=+this.value||10"></div><div><label style="font-size:10px">Type</label><select onchange="tempProgEx['+i+'].type=this.value;renderProgExList()"><option value="normal"'+(ex.type==='normal'?' selected':'')+'>Normaal</option><option value="warmup"'+(ex.type==='warmup'?' selected':'')+'>Warm-up</option><option value="superset"'+(ex.type==='superset'?' selected':'')+'>Superset</option></select></div></div>'+(ex.type==='superset'?'<div style="margin-top:7px"><label style="font-size:10px">Superset met</label><input type="text" value="'+(ex.supersetPair||'')+'" placeholder="Tweede oefening" onchange="tempProgEx['+i+'].supersetPair=this.value"></div>':'')+'</div>';}).join('');
+var editProgId=null;
+function escAttr(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function openCreateProg(){
+  editProgId=null;tempProgEx=[];
+  document.getElementById('prog-modal-title').textContent='Nieuw schema';
+  document.getElementById('prog-name').value='';
+  renderProgExList();openModal('m-create-prog');
 }
-function saveProg(){var name=document.getElementById('prog-name').value.trim();if(!name){showToast('Vul een naam in');return;}var exs=tempProgEx.filter(function(e){return e.name.trim();});S.programs.push({id:Date.now().toString(),name:name,exercises:exs});saveS();closeModal('m-create-prog');renderPrograms();renderWkSchemaSelect();showToast('Schema opgeslagen');}
-function openProgDetail(id){curProgId=id;var p=S.programs.find(function(x){return x.id===id;});document.getElementById('pd-title').textContent=p.name;document.getElementById('pd-body').innerHTML=p.exercises.map(function(e){return'<div style="padding:5px 0;border-bottom:1px solid var(--surface3)">'+e.name+' - '+e.sets+'x'+e.reps+' <span style="color:var(--muted);font-size:11px">'+(e.type||'normaal')+(e.supersetPair?' + '+e.supersetPair:'')+'</span></div>';}).join('');openModal('m-prog-detail');}
+function editProg(){
+  var p=S.programs.find(function(x){return x.id===curProgId;});if(!p)return;
+  closeModal('m-prog-detail');
+  editProgId=p.id;
+  tempProgEx=JSON.parse(JSON.stringify(p.exercises));
+  document.getElementById('prog-modal-title').textContent='Schema bewerken';
+  document.getElementById('prog-name').value=p.name;
+  renderProgExList();openModal('m-create-prog');
+}
+function addProgEx(){tempProgEx.push({name:'',sets:3,reps:10,type:'normal',supersetPair:''});renderProgExList();}
+function moveProgEx(i,dir){
+  var j=i+dir;if(j<0||j>=tempProgEx.length)return;
+  var t=tempProgEx[i];tempProgEx[i]=tempProgEx[j];tempProgEx[j]=t;
+  renderProgExList();
+}
+function removeProgEx(i){tempProgEx.splice(i,1);renderProgExList();}
+function renderProgExList(){
+  var w=document.getElementById('prog-ex-list');
+  if(!tempProgEx.length){w.innerHTML='<div style="font-size:13px;color:var(--muted);padding:6px 0 12px">Nog geen oefeningen. Voeg er een toe.</div>';return;}
+  var arrow='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">';
+  w.innerHTML=tempProgEx.map(function(ex,i){
+    var sel=function(v){return ex.type===v?' selected':'';};
+    return'<div class="prog-ex-edit">'
+      +'<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">'
+        +'<input type="text" value="'+escAttr(ex.name)+'" placeholder="Oefening naam" style="flex:1" oninput="tempProgEx['+i+'].name=this.value">'
+        +'<button class="btn-icon" '+(i===0?'disabled style="opacity:.3"':'')+' onclick="moveProgEx('+i+',-1)">'+arrow+'<polyline points="18 15 12 9 6 15"/></svg></button>'
+        +'<button class="btn-icon" '+(i===tempProgEx.length-1?'disabled style="opacity:.3"':'')+' onclick="moveProgEx('+i+',1)">'+arrow+'<polyline points="6 9 12 15 18 9"/></svg></button>'
+        +'<button class="btn-icon" style="color:var(--danger)" onclick="removeProgEx('+i+')">'+arrow+'<path d="M18 6L6 18M6 6l12 12"/></svg></button>'
+      +'</div>'
+      +'<div class="fr3">'
+        +'<div><label>Sets</label><input type="number" inputmode="numeric" value="'+ex.sets+'" min="1" oninput="tempProgEx['+i+'].sets=+this.value||3"></div>'
+        +'<div><label>Reps</label><input type="number" inputmode="numeric" value="'+ex.reps+'" min="1" oninput="tempProgEx['+i+'].reps=+this.value||10"></div>'
+        +'<div><label>Type</label><select onchange="tempProgEx['+i+'].type=this.value;renderProgExList()"><option value="normal"'+sel('normal')+'>Normaal</option><option value="warmup"'+sel('warmup')+'>Warm-up</option><option value="superset"'+sel('superset')+'>Superset</option></select></div>'
+      +'</div>'
+      +(ex.type==='superset'?'<div style="margin-top:8px"><label>Superset met</label><input type="text" value="'+escAttr(ex.supersetPair||'')+'" placeholder="Naam van de tweede oefening" oninput="tempProgEx['+i+'].supersetPair=this.value"></div>':'')
+    +'</div>';
+  }).join('');
+}
+function saveProg(){
+  var name=document.getElementById('prog-name').value.trim();if(!name){showToast('Vul een naam in');return;}
+  var exs=tempProgEx.filter(function(e){return e.name.trim();});
+  if(!exs.length){showToast('Voeg minstens 1 oefening toe');return;}
+  if(editProgId){
+    var p=S.programs.find(function(x){return x.id===editProgId;});
+    if(p){p.name=name;p.exercises=exs;}
+  }else{
+    S.programs.push({id:Date.now().toString(),name:name,exercises:exs});
+  }
+  saveS();closeModal('m-create-prog');renderPrograms();renderWkSchemaSelect();
+  showToast(editProgId?'Schema bijgewerkt':'Schema opgeslagen');
+  editProgId=null;
+}
+function openProgDetail(id){
+  curProgId=id;var p=S.programs.find(function(x){return x.id===id;});
+  document.getElementById('pd-title').textContent=p.name;
+  document.getElementById('pd-body').innerHTML=p.exercises.map(function(e){
+    var kind=e.type==='warmup'?'warm-up':(e.type==='superset'?'superset'+(e.supersetPair?' met '+e.supersetPair:''):'');
+    return'<div style="padding:9px 0;border-bottom:1px solid var(--surface3);display:flex;justify-content:space-between;gap:10px"><span style="color:var(--text);font-weight:600">'+e.name+(kind?'<div style="color:var(--muted);font-size:11px;font-weight:400;margin-top:2px">'+kind+'</div>':'')+'</span><span style="font-family:var(--mono);flex-shrink:0">'+e.sets+'x'+e.reps+'</span></div>';
+  }).join('');
+  openModal('m-prog-detail');
+}
 function delProg(){var id=curProgId;closeModal('m-prog-detail');askConfirm('Schema verwijderen?','Verwijderen',function(){S.programs=S.programs.filter(function(p){return p.id!==id;});saveS();renderPrograms();renderWkSchemaSelect();showToast('Schema verwijderd');});}
 function importProgramFromText(text){
   try{

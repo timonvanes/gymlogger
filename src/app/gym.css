@@ -150,3 +150,8 @@ select option{background:var(--surface2)}
 .hist-daynote{margin-top:10px;padding:10px 12px;background:var(--surface2);border-radius:10px;font-size:13px;color:var(--muted)}
 .hist-skip{color:var(--danger);font-style:italic;font-size:12px;font-weight:600}
 .hist-sub{color:var(--muted);font-size:11px;margin-top:2px}
+.prog-ex-edit{background:var(--surface2);border-radius:12px;padding:12px;margin-bottom:8px}
+.prog-ex-edit label{font-size:10px}
+.prog-ex-edit .btn-icon:disabled{cursor:default}
+.prog-ex-edit select{padding:0 4px;font-size:14px}
+.prog-ex-edit input[type=number]{text-align:center;padding:0 6px}
