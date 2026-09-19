@@ -372,7 +372,7 @@ function makeExCard(ex,bi,ei,inSS){
   var isPinned=!!(storedNote&&storedNote.pinned);
   var noteHtml=ex.note?'<div class="inline-note" style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div style="flex:1">'+ex.note+'</div><button class="icon-tap" style="flex-shrink:0;margin:-8px -8px 0 0;color:'+(isPinned?'var(--accent)':'var(--muted)')+'" onclick="pinExNote('+bi+','+ei+')" title="'+(isPinned?'Gepind - altijd tonen':'Voor altijd tonen')+'"><svg width="20" height="20" viewBox="0 0 24 24" fill="'+(isPinned?'currentColor':'none')+'" stroke="currentColor" stroke-width="2"><path d="M12 17v5M8 3h8l-1 7 3 2.5V14H6v-1.5L9 10z"/></svg></button></div>':'';
   var div=document.createElement('div');div.className=inSS?'superset-ex':'card';
-  div.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px"><div><div style="font-weight:800;font-size:18px;letter-spacing:-.01em">'+ex.name+'</div><div style="margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">'+(typeLabel?'<span class="badge badge-warmup">'+typeLabel+'</span>':'')+'<span style="font-size:13px;color:var(--muted)">'+ex.sets+' sets x '+ex.reps+' reps</span>'+prHtml+'</div></div>'+(inSS?'':'<button class="btn-icon" onclick="remBlock('+bi+')"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg></button>')+'</div><table class="sets-table"><thead><tr><th>#</th><th>Kg</th><th>Reps</th><th>Vorige</th><th></th></tr></thead><tbody>'+rows+'</tbody></table><div class="ex-actions"><button class="btn btn-ghost btn-sm" onclick="addSet('+bi+','+ei+')">+ Set</button><button class="btn btn-ghost btn-sm" onclick="openExNote('+bi+','+ei+')">Notitie</button></div>'+noteHtml;
+  div.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px"><div><div style="font-weight:800;font-size:17px;letter-spacing:-.01em">'+ex.name+'</div><div style="margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">'+(typeLabel?'<span class="badge badge-warmup">'+typeLabel+'</span>':'')+'<span style="font-size:13px;color:var(--muted)">'+ex.sets+' sets x '+ex.reps+' reps</span>'+prHtml+'</div></div>'+(inSS?'':'<button class="btn-icon" onclick="remBlock('+bi+')"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg></button>')+'</div><table class="sets-table"><thead><tr><th>#</th><th>Kg</th><th>Reps</th><th>Vorige</th><th></th></tr></thead><tbody>'+rows+'</tbody></table><div class="ex-actions"><button class="btn btn-ghost btn-sm" onclick="addSet('+bi+','+ei+')">+ Set</button><button class="btn btn-ghost btn-sm" onclick="openExNote('+bi+','+ei+')">Notitie</button></div>'+noteHtml;
   return div;
 }
 function makeSupersetBlock(block,bi){
@@ -463,8 +463,11 @@ function markTodayActivityDone(actKey){
 function saveWorkout(){
   if(!S.today.exercises.length){showToast('Geen oefeningen');return;}
   var ts=todayStr();
-  var entry={date:ts,exercises:JSON.parse(JSON.stringify(S.today.exercises)),note:S.today.note,schemaName:S.today.schemaName||''};
-  var idx=S.history.findIndex(function(h){return h.date===ts;});if(idx>=0)S.history[idx]=entry;else S.history.push(entry);
+  var logged=S.today.exercises.filter(function(b){return !isWarmupBlock(b);});
+  if(logged.length){
+    var entry={date:ts,exercises:JSON.parse(JSON.stringify(logged)),note:S.today.note,schemaName:S.today.schemaName||''};
+    var idx=S.history.findIndex(function(h){return h.date===ts;});if(idx>=0)S.history[idx]=entry;else S.history.push(entry);
+  }
   S.today={exercises:[],note:''};
   markTodayActivityDone('gym');
   if(timerIv){clearInterval(timerIv);timerIv=null;timerStart=null;document.getElementById('timer-bar').classList.remove('vis');}
