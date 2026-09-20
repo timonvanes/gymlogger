@@ -264,7 +264,7 @@ async function loadS(){
   ensureNewFields();
   document.getElementById('today-date').textContent=fmtDate(todayStr());
 }
-function todayStr(){return new Date().toISOString().slice(0,10);}
+function todayStr(){return localDateStr(new Date());}
 function fmtDate(s){return new Date(s+'T12:00:00').toLocaleDateString('nl-NL',{weekday:'short',day:'numeric',month:'short',year:'numeric'});}
 function fmtShort(s){return new Date(s+'T12:00:00').toLocaleDateString('nl-NL',{day:'numeric',month:'short'});}
 function getWeekMon(offsetWeeks){
@@ -340,6 +340,10 @@ function makeWarmupCard(ex,bi){
 function renderDayBanner(){
   var b=document.getElementById('day-banner');
   ensureNewFields();
+  if(S.today.exercises.length&&S.today.startDate&&S.today.startDate!==todayStr()){
+    b.innerHTML='<div class="rest-banner"><div style="font-size:13px;line-height:1.5">Deze training is gestart op <b>'+fmtDate(S.today.startDate)+'</b>. Bij afronden wordt hij op die dag opgeslagen.</div></div>';
+    return;
+  }
   var todayIdx=jsDayToIndex(new Date().getDay());
   var acts=S.activities.filter(function(a){return (S.activitySchedule[a.key]||[]).includes(todayIdx);});
   if(acts.length){
@@ -433,6 +437,7 @@ function addExercise(){
     S.today.exercises.push({type:'superset',exercises:[exA,exB]});
   }
   else{var newEx={name:name,sets:sets,reps:reps,type:type,setData:[],note:''};attachStoredNote(newEx);S.today.exercises.push({type:'normal',exercises:[newEx]});}
+  if(!S.today.startDate)S.today.startDate=todayStr();
   saveS();closeModal('m-add-ex');renderWorkout();showToast('Toegevoegd');
   if(!timerIv)startTimer();
 }
@@ -452,24 +457,25 @@ function saveExNote(){
   }
   saveS();closeModal('m-ex-note');renderWorkout();
 }
-function markTodayActivityDone(actKey){
+function markTodayActivityDone(actKey,dateStr){
   ensureNewFields();
-  var todayIdx=jsDayToIndex(new Date().getDay());
+  dateStr=dateStr||todayStr();
+  var todayIdx=jsDayToIndex(new Date(dateStr+'T12:00:00').getDay());
   if(!S.activitySchedule[actKey])S.activitySchedule[actKey]=[];
   if(!S.activitySchedule[actKey].includes(todayIdx))S.activitySchedule[actKey].push(todayIdx);
-  var key=todayStr()+'_'+actKey;
+  var key=dateStr+'_'+actKey;
   if(!(S.activityDone||[]).includes(key))S.activityDone.push(key);
 }
 function saveWorkout(){
   if(!S.today.exercises.length){showToast('Geen oefeningen');return;}
-  var ts=todayStr();
+  var ts=S.today.startDate||todayStr();
   var logged=S.today.exercises.filter(function(b){return !isWarmupBlock(b);});
   if(logged.length){
     var entry={date:ts,exercises:JSON.parse(JSON.stringify(logged)),note:S.today.note,schemaName:S.today.schemaName||''};
     var idx=S.history.findIndex(function(h){return h.date===ts;});if(idx>=0)S.history[idx]=entry;else S.history.push(entry);
   }
   S.today={exercises:[],note:''};
-  markTodayActivityDone('gym');
+  markTodayActivityDone('gym',ts);
   if(timerIv){clearInterval(timerIv);timerIv=null;timerStart=null;document.getElementById('timer-bar').classList.remove('vis');}
   saveS();showToast('Training opgeslagen!');
   renderWorkout();
@@ -480,6 +486,7 @@ function loadSchema(){
   var id=document.getElementById('wk-schema-sel').value;if(!id){showToast('Kies eerst een training');return;}
   var prog=S.programs.find(function(p){return p.id===id;});if(!prog)return;
   S.today.schemaName=prog.name;
+  if(!S.today.startDate)S.today.startDate=todayStr();
   var existing=new Set(S.today.exercises.flatMap(function(b){return b.exercises.map(function(e){return e.name.toLowerCase();});}));
   var added=new Set();
   prog.exercises.forEach(function(ex){
